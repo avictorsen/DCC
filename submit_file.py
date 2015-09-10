@@ -1,0 +1,488 @@
+import hashlib
+import json
+import os
+import re
+import requests
+import subprocess
+import time
+import sys
+import string
+#from identity import keys #want to remove
+#from ENCODETools import GetENCODE #want to remove
+import xlrd
+import urllib
+from httplib2 import Http
+from apiclient import errors, http
+from oauth2client.client import SignedJwtAssertionCredentials
+from apiclient.discovery import build
+import csv
+
+key_open = open('../keys.txt')
+keys = csv.DictReader(key_open,delimiter = '\t')
+for key in keys:
+    if key.get('server') == 'DCC':
+        encoded_access_key = key.get('user')
+        encoded_secret_access_key = key.get('password')
+    elif key.get('server') == 'GOOGLE':
+        client_email = key.get('user')
+        PW_file = key.get('password')
+    else:
+        print
+
+def main():
+    if (len(sys.argv) < 4):
+        print "Error! use arguments: genome; Gdoc_name sheet_name"
+    os.system("rmdir --ignore-fail-on-non-empty temp")
+    os.system("mkdir temp")
+    OUTPUT = open('submit_file_output.txt', 'w')
+    host = 'https://www.encodeproject.org/'
+    #host = 'https://test.encodedcc.org/'
+
+    #Static variables
+    encoded_access_key = '7BYSNP6J'
+    encoded_secret_access_key = 'mxaeciib2jtxzolh'
+    my_lab = 'kevin-white'
+    my_award = 'U41HG007355'
+    proggen = sys.argv[1]
+    spreadname = sys.argv[2]
+    workbook = sys.argv[3]
+    encValData = 'encValData'
+
+    #login credentials
+    with open(PW_file) as f:
+        private_key = f.read()
+    credentials = SignedJwtAssertionCredentials(client_email, private_key,'https://www.googleapis.com/auth/drive.readonly')
+    http_auth = credentials.authorize(Http())
+    drivelogin = build('drive', 'v2', http=http_auth)
+
+    #gets list of googleDOC files
+    result = []
+    page_token = None
+    while True:
+        try:
+            param = {'corpus': 'DOMAIN', 'q': "title contains '_'"}
+            files = drivelogin.files().list(**param).execute()
+            result.extend(files['items'])
+            page_token = files.get('nextPageToken')
+            if not page_token:
+                break
+        except errors.HttpError, error:
+            print 'An error occurred: %s' % error
+            break
+    #compare list of files to inputed spreadname
+    for i in result:
+        if i['title'] == spreadname:
+            spreadid = i['id']
+            selflink = i['selfLink']
+            #print spreadid
+    try:
+        selflink
+    except NameError:
+        print 'spreadsheet not found'
+        sys.exit()
+    print "Opening spreadsheet: "+ spreadname
+
+    file = 'temp_submit_file.xlsx'
+
+    #get actual data
+    download_url = drivelogin.files().get(fileId=spreadid).execute()['exportLinks']['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+    if download_url:
+        response = urllib.urlopen(download_url)
+        if response.getcode() == 200:
+            urllib.urlretrieve(download_url, file)
+        else:
+            print 'Could not download file' + response
+            sys.exit()
+    #open workbook.
+    try:
+        book = xlrd.open_workbook(file)
+    except errors:
+        print 'could not open workbook'
+        os.remove(file)
+        sys.exit()
+    try:
+        work = book.sheet_by_name(workbook)
+    except errors:
+        print 'could not find workbook'
+        os.remove(file)
+        sys.exit()
+    print "Processing worksheet: " + workbook
+
+    # get list of compressed header names
+    headers = work.row_values(0)
+    print 'headers:'
+    print headers
+    object_list = []
+    #object_schema = GetENCODE(('/profiles/file.json'),keys)
+    try:
+        response = requests.get(host+'profiles/file.json?limit=all',auth=(encoded_access_key, encoded_secret_access_key),headers={'content-type': 'application/json'})
+    except errors:
+        print "couldn't get JSON schema"
+        sys.exit()
+    object_schema = response.json()
+    for row in range(1, work.nrows, 1):
+        print
+        print
+        print "----------------------------------------------------------------"
+        #break on blank line
+        dieif = 0
+        for cell in work.row_values(row,0):
+            if cell is "":
+               None
+            else:
+               dieif = 1
+        if dieif == 0:
+            break
+        #look at switching to just makeing dictionary from row.
+        for colindex,header in enumerate(headers):
+            #if header == "uuid":
+            #    value = work.cell_value(row,colindex)
+            #    if value is not '':
+            #        new_object.update({header: ''})
+            if object_schema[u'properties'].has_key(header):
+                value = work.cell_value(row, colindex)
+                print header+':',value
+                if len(str(value)) > 0 :
+                    if header == "file_format_type":
+                        type = work.cell_value(row, colindex)
+                    if header == "dataset":
+                        exp = work.cell_value(row, colindex)
+                    if header == "aliases":
+                        aliases = work.cell_value(row, colindex)
+                    if header == "replicate":
+                        rep = work.cell_value(row,colindex)
+                    if header == "derived_from":
+                        derived_from = work.cell_value(row, colindex)
+                        if derived_from != None:
+                            derived_from = derived_from.split(', ')
+                    if header == "controlled_by":
+                        controlled_by = work.cell_value(row, colindex).split(', ')
+                    if header == "assembly":
+                        assembly =  work.cell_value(row, colindex)
+                    if header == "read_length":
+                        read_length = int(work.cell_value(row, colindex))
+                    if header == "run_type":
+                        run_type = work.cell_value(row, colindex)
+                    if header == "output_type":
+                        output_type = work.cell_value(row, colindex)
+                    if header == "flowcell_details":
+                        cell = work.cell_value(row, colindex)
+                        cell = cell.split(', ')
+                        sub_object = {}
+                        for i in cell:
+                            pair = i.split(': ')
+                            if pair[0] == 'machine':
+                                if pair[1] == '@HWI-D00422' or pair[1] == '@HWI-ST1083' or pair[1] == '@HWI-70014499L':
+                                    platform = 'HiSeq 2500'
+                                elif pair[1] == '@HWI-ST484' or pair[1] == '@HWI-ST673' or pair[1] == '@D13608P1' or pair[1] == '@DC4RYQN1' or pair[1] == '@HWI-7001449L':
+                                    platform = 'HiSeq 2000'
+                                elif pair[1] == '@MAGNUM' or pair[1] == '@ROCKFORD' or pair[1] == '@KOJAK' or pair[1] == '@COLUMBO' or pair[1] == '@SPADE':
+                                    platform = 'Genome Analyzer IIx'
+                                else:
+                                    print "cannot find platform for " + pair[1]
+                                    sys.exit()
+                            pair[1] = pair[1].replace('\n','')
+                            sub_object[pair[0]] = pair[1]
+                        cell = [sub_object]
+                        format = 'fastq'
+
+            else:
+                if header == "path_to_file":
+                    path = work.cell_value(row, colindex)
+                    print header+':', path
+                    file = path
+                    temp = os.path.splitext(path)
+                    if (temp[1] == '.bam'):
+                        if proggen == 'dm3':
+                            file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
+                            assembly = 'dm3'
+                        elif proggen == 'WS220':
+                            file = os.popen("find /raid/modencode/ce/processed/WS220/2* -name " + path).readlines()
+                            assembly = 'ce10'
+                        else:
+                            print 'Genome not recognized'
+                            sys.exit()
+                        if len(file) < 1:
+                            print 'Error: no files found'
+                            os.system("rmdir --ignore-fail-on-non-empty temp")
+                            sys.exit()
+                        if len(file) > 2:
+                           print 'More than two bam files found: ',file
+                           sys.exit()
+                        path = file[0].rstrip()
+                        format = 'bam'
+                    if (temp[1] == '.gz'):
+                        file = file.replace('.gz', '')
+                        temp = os.path.splitext(file)
+                    if (temp[1] == ".txt" or temp[1] == '.fastq'):
+                        os.system("scp avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                        path = "./temp/" + os.path.basename(path)
+                    if (temp[1] == '.wig'):
+                       os.system("cp " + path + " ./temp/")
+                       if (proggen == 'dm3'):
+                           os.system("sh makeBigWigsdm3.sh ./temp/")
+                           assembly = 'dm3'
+                       elif (proggen == 'WS220'):
+                           os.system("sh makeBigWigsce10.sh ./temp/")
+                           assembly = 'ce10'
+                       else:
+                           print("can't find assembly:" + assembly)
+                           sys.exit()
+                       path = "./temp/" + os.path.basename(path)
+                       path = path.replace('.wig', '.bw')
+                       print "File Converted to " + path
+                       format = 'bigWig'
+
+                    if (temp[1] == '.bed'):
+                       os.system("cp " + path + " ./temp/")
+                       if (proggen == 'dm3'):
+                           os.system("sh makeBigBedsdm3.sh ./temp/")
+                           assembly = 'dm3'
+                       elif (proggen == 'WS220'):
+                           os.system("sh makeBigBedsce10.sh ./temp/")
+                           assembly = 'ce10'
+                       else:
+                           print("can't find assembly:" + assembly)
+                           sys.exit()
+                       copied_path = "./temp/" + os.path.basename(path)
+                       path = copied_path.replace('.bed', '.bb')
+                       print "new path_to_file:" + path
+                       format = 'bigBed'
+                       aliases = aliases.replace('bed', 'bigbed')
+
+                    if (temp[1] == '.rmblacklist'):
+                       os.system("cp " + path + " ./temp/" + os.path.basename(path) + ".bed")
+                       if (proggen == 'dm3'):
+                           os.system("sh makeBigBedsdm3.sh ./temp/")
+                           assembly = 'dm3'
+                       elif (proggen == 'WS220'):
+                           os.system("sh makeBigBedsce10.sh ./temp/")
+                           assembly = 'ce10'
+                       else:
+                           print("can't find assembly:" + proggen)
+                           sys.exit()
+                       path = path + '.bb'
+                       format = 'narrowPeak'
+                     
+        #compile and send to DCC
+        sys.exit()
+        DCC(path)
+        #if file format is bed, rerun with original bed file
+        if (format == 'bigBed'):
+            print "Repeating submission with original bed file"
+            format = 'bed'
+            path = copied_path
+            aliases = aliases.replace('bigbed','bed')
+            DCC()
+
+        ####Clean up
+        os.system("rm -f ./temp/*")
+    os.system("rmdir --ignore-fail-on-non-empty temp")
+
+def DCC():
+    print '\n\n'
+    #compile data
+    data = {
+        "aliases": [aliases],
+        "dataset": exp,
+        "file_format": format,
+        "lab": my_lab,
+        "award": my_award,
+    }
+    ## add specific data to data array
+    if ('derived_from' in headers):
+        if derived_from != None:
+            data['derived_from'] = derived_from
+            #del derived_from
+    if 'type' in globals():
+        data['file_format_type'] = type
+    if 'read_length' in globals():
+        data['read_length'] = read_length
+    if 'run_type' in globals():
+        data['run_type'] = run_type
+    if 'controlled_by' in globals():
+        data['controlled_by'] = controlled_by
+        del controlled_by
+    if 'assembly' in globals():
+        data['assembly'] = assembly
+    if not output_type == None:
+        data["output_type"] = output_type
+        #del output_type    
+    if 'rep' in globals():
+        if not rep == None:
+            data['replicate'] = rep
+            #del rep
+    if (format is 'fastq'):
+        data["flowcell_details"] = cell
+        data["platform"] = platform
+        #to remove paired_end
+        data["paired_end"] = '1'
+        data.pop('paired_end')
+    
+    #print data
+    ####################
+    # Local validation
+    gzip_types = [
+        "CEL",
+        "bam",
+        "bed",
+        "bed3",
+        "bed6",
+        "bed_bed3",
+        "bed_bed6",
+        "bed_bedLogR",
+        "bed_bedMethyl",
+        "bed_bedRnaElements",
+        "bed_broadPeak",
+        "bed_narrowPeak",
+        "bed_peptideMapping",
+        "csfasta",
+        "csqual",
+        "fasta",
+        "fastq",
+        "gff",
+        "gtf",
+        "tar",
+    ]
+
+    magic_number = open(path, 'rb').read(2)
+    is_gzipped = magic_number == b'\x1f\x8b'
+    print "format:" + format
+
+
+    #print "gzipped?" + is_gzipped
+    if re.search('$bed', data['file_format']) != None:
+        test = data['file_format']+"_"+data['file_format_type']
+    else:
+        test = data['file_format']
+    if test in gzip_types:
+        gzip = subprocess.Popen(['gzip','-f',path])
+        path = path + '.gz'
+        if gzip.stderr != None:
+            assert is_gzipped, 'Expected gzipped file'
+    else:
+        assert not is_gzipped, 'Expected un-gzipped file'
+
+
+    #calculate md5
+    md5sum = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1024*1024), ''):
+            md5sum.update(chunk)
+    print "md5sum: ", md5sum.hexdigest()
+    data['md5sum'] = md5sum.hexdigest()
+    data['file_size'] = os.path.getsize(path)
+    data['submitted_file_name'] = path
+
+    chromInfo = '-chromInfo=%s/%s/chrom.sizes' % (encValData, proggen)
+    #if proggen == 'dm3':
+    #    chromInfo += '.nochr'
+
+    validate_map = {
+        'bam': ['-type=bam', chromInfo],
+        'bed': ['-type=bed3', chromInfo],
+        #'bed': ['-type=bed6+', chromInfo],  # if this fails we will drop to bed3+
+        'bedLogR': ['-type=bigBed9+1', chromInfo, '-as=%s/as/bedLogR.as' % encValData],
+        'bed_bedLogR': ['-type=bed9+1', chromInfo, '-as=%s/as/bedLogR.as' % encValData],
+        'bedMethyl': ['-type=bigBed9+2', chromInfo, '-as=%s/as/bedMethyl.as' % encValData],
+        'bed_bedMethyl': ['-type=bed9+2', chromInfo, '-as=%s/as/bedMethyl.as' % encValData],
+        'bigBed': ['-type=bigBed3', chromInfo],  # if this fails we will drop to bigBed3+
+       #'bigBed': ['-type=bigBed6+', chromInfo],  # if this fails we will drop to bigBed3+
+        'bigWig': ['-type=bigWig', chromInfo],
+        'broadPeak': ['-type=bigBed6+3', chromInfo, '-as=%s/as/broadPeak.as' % encValData],
+        'bed_broadPeak': ['-type=bed6+3', chromInfo, '-as=%s/as/broadPeak.as' % encValData],
+        'fasta': ['-type=fasta'],
+        'fastq': ['-type=fastq'],
+        'gtf': None,
+        'idat': ['-type=idat'],
+        'narrowPeak': ['-type=bigBed6+4', chromInfo, '-as=%s/as/narrowPeak.as' % encValData],
+        'bed_narrowPeak': ['-type=bed6+4', chromInfo, '-as=%s/as/narrowPeak.as' % encValData],
+        'rcc': ['-type=rcc'],
+        'tar': None,
+        'tsv': None,
+        '2bit': None,
+        'csfasta': ['-type=csfasta'],
+        'csqual': ['-type=csqual'],
+        'bedRnaElements': ['-type=bed6+3', chromInfo, '-as=%s/as/bedRnaElements.as' % encValData],
+        'CEL': None,
+    }
+
+    validate_args = validate_map.get(data['file_format'])
+    print "ohcho"
+    if validate_args is not None:
+        print"\nValidating file."
+        try:
+           validate = subprocess.check_output(['./validateFiles'] + validate_args + [path])
+        except validate.CalledProcessError as e:
+            print(e.output)
+            raise
+    DCCheaders = {
+        'Content-type': 'application/json',
+        'Accept': 'application/json',
+    }
+    r = requests.post(
+        host + '/files',
+        auth=(encoded_access_key, encoded_secret_access_key),
+        data=json.dumps(data),
+        headers=DCCheaders,
+    )
+    try:
+        r.raise_for_status()
+    except requests.exceptions.HTTPError:
+        #print r.json()
+        print "post failed, trying patch"
+        s = requests.patch(#change to put to overwrite,patch to ammend
+            host + '/' + aliases,
+            auth=(encoded_access_key, encoded_secret_access_key),
+            data=json.dumps(data),
+            headers=DCCheaders,
+        )
+        try:
+            s.raise_for_status()
+        except requests.exceptions.HTTPError:
+            print '\ndata: ', data
+            print 
+            print 'r: ', r.json()
+            print 
+            print('patch failed: %s %s' % (s.status_code, s.reason))
+            print 
+            print 's: ', s.json()
+            sys.exit()
+        print "posting metadata patch!"
+    if r.json()[u'status'] == 'success':
+        print 'uuid: ',r.json()['@graph'][0]['uuid']
+        temp = r.json()['@graph'][0]['aliases'][0]
+        OUTPUT.write(temp)
+        OUTPUT.write('\t')
+        temp = r.json()['@graph'][0]['uuid']
+        OUTPUT.write(temp)
+        OUTPUT.write('\n')
+        t = requests.patch(
+            host + aliases,
+            auth=(encoded_access_key, encoded_secret_access_key),
+            data=json.dumps(data),
+            headers=DCCheaders,
+        )
+        print "posting metadata!"
+       #print r.json()
+        item = t.json()['@graph'][0]
+       #print "r:", r.json()
+
+       #POST file to S3
+        creds = item['upload_credentials']
+        env = os.environ.copy()
+        env.update({
+            'AWS_ACCESS_KEY_ID': creds['access_key'],
+            'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
+            'AWS_SECURITY_TOKEN': creds['session_token'],
+        })
+        print("Uploading file.")
+        start = time.time()
+        subprocess.check_call(['aws', 's3', 'cp', path, creds['upload_url']], env=env)
+        end = time.time()
+        duration = end - start
+        print("Uploaded in %.2f seconds" % duration)
+    #print s.json()
+    return;
+
+main()
