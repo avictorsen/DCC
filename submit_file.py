@@ -39,10 +39,6 @@ def main():
     #host = 'https://test.encodedcc.org/'
 
     #Static variables
-    encoded_access_key = '7BYSNP6J'
-    encoded_secret_access_key = 'mxaeciib2jtxzolh'
-    my_lab = 'kevin-white'
-    my_award = 'U41HG007355'
     proggen = sys.argv[1]
     spreadname = sys.argv[2]
     workbook = sys.argv[3]
