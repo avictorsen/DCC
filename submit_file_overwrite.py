@@ -17,20 +17,19 @@ from oauth2client.client import SignedJwtAssertionCredentials
 from apiclient.discovery import build
 import csv
 
-key_open = open('../keys.txt')
-keys = csv.DictReader(key_open,delimiter = '\t')
-for key in keys:
-    if key.get('server') == 'DCC':
-        encoded_access_key = key.get('user')
-        encoded_secret_access_key = key.get('password')
-    elif key.get('server') == 'GOOGLE':
-        client_email = key.get('user')
-        PW_file = key.get('password')
-    else:
-        print
-
-
 def main():
+    key_open = open('../keys.txt')
+    keys = csv.DictReader(key_open,delimiter = '\t')
+    for key in keys:
+        if key.get('server') == 'DCC':
+            encoded_access_key = key.get('user')
+            encoded_secret_access_key = key.get('password')
+        elif key.get('server') == 'GOOGLE':
+            client_email = key.get('user')
+            PW_file = key.get('password')
+        else:
+            print
+
     if (len(sys.argv) < 4):
         print "Error! use arguments: genome; Gdoc_name sheet_name"
     os.system("rmdir --ignore-fail-on-non-empty temp")
@@ -464,11 +463,24 @@ def DCC(d, OUTPUT):
         #print "s:", s.json()
         ID = s.json()['@graph'][0]['accession']
 
-        url = "curl -X PATCH -T " + d['path'] + " https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload | jq'.'"
-        print url
-        os.system(url)
-        sys.exit()
-
+        renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
+        #item = os.popen(renew_upload_credentials)
+        item = json.loads(os.popen(renew_upload_credentials).read())['@graph'][0]
+        #print item['uplaod_credentials']['access_key']
+        #POST file to S3
+        creds = item['upload_credentials']
+        env = os.environ.copy()
+        env.update({
+            'AWS_ACCESS_KEY_ID': creds['access_key'],
+            'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
+            'AWS_SECURITY_TOKEN': creds['session_token'],
+        })
+        print("Uploading file.")
+        start = time.time()
+        subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
+        end = time.time()
+        duration = end - start
+        print("Uploaded in %.2f seconds" % duration)
 
     if r.json()[u'status'] == 'success':
         print 'uuid: ',r.json()['@graph'][0]['uuid']
