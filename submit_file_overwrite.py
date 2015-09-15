@@ -275,8 +275,8 @@ def main():
             print "\n\nRepeating submission with original bed file"
             format = 'bed'
             path = copied_path
-            if proggen == 'WS220':
-                os.system("zcat " + path + " > " + path + ".temp | bedtools slop -i " + path + ".temp -g ./encValData/ce10/chrom.sizes -b 0 > " + path + ".temp2 | gzip -c " + path + ".temp2 > " + path)
+            #if proggen == 'WS220':
+            #    os.system("zcat " + path + " > " + path + ".temp | bedtools slop -i " + path + ".temp -g ./encValData/ce10/chrom.sizes -b 0 > " + path + ".temp2 | gzip -c " + path + ".temp2 > " + path)
             aliases = aliases.replace('bigbed','bed')
             print aliases
             DCC(locals(),OUTPUT)
@@ -462,10 +462,14 @@ def DCC(d, OUTPUT):
         print "posting metadata patch!"
         #print "s:", s.json()
         ID = s.json()['@graph'][0]['accession']
-
+        print "ID: " + ID
         renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
-        #item = os.popen(renew_upload_credentials)
-        item = json.loads(os.popen(renew_upload_credentials).read())['@graph'][0]
+        response = json.loads(os.popen(renew_upload_credentials).read())
+        if '@graph' in response:
+            item = response['@graph'][0]
+        else:
+            print response
+            sys.exit()
         #print item['uplaod_credentials']['access_key']
         #POST file to S3
         creds = item['upload_credentials']
