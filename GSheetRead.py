@@ -166,8 +166,7 @@ print 'Writing '+ str(len(object_list))+ ' objects to JSON file: '+ json_file
 with open(json_file, 'w') as outfile:
     json.dump(object_list, outfile)
     outfile.close
-print('Done.')
-
+os.remove(file)
 
 
 
