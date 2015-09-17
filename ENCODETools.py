@@ -32,7 +32,8 @@ def GetENCODE(object_id,keys):
         try:
             response = requests.get(url,auth=(keys['authid'],keys['authpw']), headers=HEADERS)
             if not response.status_code == 200:
-                print >> sys.stderr, response.text
+                None
+                #print >> sys.stderr, response.text
         # no
         except Exception as e:
             print("Get request failed:")
@@ -160,6 +161,8 @@ intended to fix invalid JSON. removes unexpected or unpatchable properties
 '''
     # DOES NOT REMOVE ITEMS THAT CAN ONLY BE POSTED
     for key in new_object.keys():
+        if key == '@type':
+            new_object.pop(key)
         if not object_schema[u'properties'].get(key):
             new_object.pop(key)
         elif object_schema[u'properties'][key].has_key(u'requestMethod'):

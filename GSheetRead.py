@@ -158,6 +158,15 @@ for row in range(1, work.nrows, 1):
                         print 'filename' + str(value)
                         sub_object[u'href'] = get_data_uri(value)#image data
                             #print new_object
+                    else:
+                        value = value.split(', ')
+                        sub_object = dict()
+                        for prop_value_pair in value:
+                            pair = prop_value_pair.split(': ')
+                            if pair[0] == 'start' or pair[0] == 'end':
+                                sub_object[pair[0]] = int(pair[1])
+                            else:
+                                sub_object[pair[0]] = pair[1]
                     new_object.update({header: sub_object})
     object_list.append(new_object)
 

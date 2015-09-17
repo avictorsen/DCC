@@ -14,8 +14,6 @@ from ENCODETools import FlatJSON
 #from ENCODETools import EmbedJSON
 from ENCODETools import WriteJSON
 import csv
-#from identity import data_file
-#from identity import keys
 
 
 if __name__ == "__main__":
@@ -23,16 +21,7 @@ if __name__ == "__main__":
 This script will read in all objects in the objects folder, determine if they are different from the database object, and post or patch them to the database.
 Authentication is determined from the keys.txt file.
 '''
-    # FUTURE: Should also be deal with errors that are only dependency based.
-
-    # load objects in object folder. MODIFY TO HAVE USER VIEW AND SELECT OBJECTS
-    #object_filenames = os.listdir('objects/')
-    
-    # run for each object in objects folder
-    #for object_filename in object_filenames:
-        #if '.json' in object_filename:
-
-
+    filename = open('uploaded_objects.txt','w')
     key_open = open('../keys.txt')
     key_file = csv.DictReader(key_open,delimiter = '\t')
     for key in key_file:
@@ -68,7 +57,6 @@ Authentication is determined from the keys.txt file.
         # define object parameters. NEEDS TO RUN A CHECK TO CONFIRM THESE EXIST FIRST.
         object_type = str(new_object[u'@type'][0])
         # if the accession does not exist, make it blank
-	#Padma: remove object_type for biosample_characterization
 	if 'biosample_characterization' in new_object[u'@type'] :
 	    del new_object[u'@type']
         object_id = ''
@@ -86,54 +74,18 @@ Authentication is determined from the keys.txt file.
             object_id = str(object_uuid)
         else:
             object_uuid = ''
-
-        # if the id does not exist, assign the uuid. if no uuid, blank.
-        #if new_object.has_key(u'@id'):
-        #    object_id = str(new_object[u'@id'])
-        #else:
-        #    None
-            #object_id = '' # THIS DOESN"T WORK
-        # get relevant schema
         #print('Getting Schema.')
         object_schema = GetENCODE(('/profiles/' + object_type + '.json'),keys)
 
         # check to see if object already exists
-        # PROBLEM: SHOULD CHECK UUID AND NOT USE ANY SHORTCUT METADATA THAT MIGHT NEED TO CHANGE
-        # BUT CAN'T USE UUID IF NEW... HENCE PROBLEM
         #print('Checking Object.')
         if object_id != '':
             old_object = GetENCODE(object_id,keys)
 
-
-# # test the validity of new object
-# if not ValidJSON(object_type,object_id,new_object):
-# # get relevant schema
-# object_schema = get_ENCODE(('/profiles/' + object_type + '.json'))
-#
-# # test the new object. SHOULD HANDLE ERRORS GRACEFULLY
-# try:
-# jsonschema.validate(new_object,object_schema)
-# # did not validate
-# except Exception as e:
-# print('Validation of ' + object_id + ' failed.')
-# print(e)
-#
-# # did validate
-# else:
-# # inform the user of the success
-# print('Validation of ' + object_id + ' succeeded.')
-#
-# # post the new object(s). SHOULD HANDLE ERRORS GRACEFULLY
-# response = new_ENCODE(object_collection,new_object)
-
         # if object is not found, verify and post it
         if (old_object.get(u'title') == u'Not Found') | (old_object.get(u'title') == u'Home'):
-
-            # clean object of unpatchable or nonexistent properties. SHOULD INFORM USER OF ANYTHING THAT DOESN"T GET POSTED.
-           # new_object = CleanJSON(new_object,object_schema,'POST')
-    
             new_object = FlatJSON(new_object,keys)
-            # print(new_object)
+            print '\n\nalias: ' + str(new_object[u'aliases']) + ' is new.'
             # test the new object
             if ValidJSON(object_type,object_id,new_object,keys):
             	# post the new object(s). SHOULD HANDLE ERRORS GRACEFULLY
@@ -143,16 +95,14 @@ Authentication is determined from the keys.txt file.
 		if response['status'] == 'success':
 			object_check = GetENCODE(str(response[u'@graph'][0][u'@id']),keys)
 	        #	print object_check
-		#	print(object_check[u'@id'], object_check[u'uuid'])
+			print 'uuid: ' + str(object_check[u'uuid'])
+                        filename.write(str(new_object['aliases'] + '\t' + str(object_check[u'uuid']))
 			posted_objects.append(object_check)
 		if response['status'] == 'error':
 			new_object.update({'description':response['description']})
 			new_object.update({'errors':response['errors']})
 			new_object.update({'object_type':object_type})
 			error_objects.append(new_object)
-
-######################
-
         # if object is found, check for differences and patch it if needed/valid.
         elif put_status:
             # clean object of unpatchable or nonexistent properties. SHOULD INFORM USER OF ANYTHING THAT DOESN"T GET PUT.
@@ -184,16 +134,9 @@ Authentication is determined from the keys.txt file.
                 patched_objects.append(new_object)
             else:
                 print('\n\n' + object_id + ' has no updates.')
-    # write object to file
-    print '\n\n'    
-
+    print '\n'    
     print 'Patched ' + str(len(patched_objects))+ ' items'
-    
-    # file to print uuid's to
-    filename = 'uploaded_objects.txt'
-    print 'Writing '+ str(len(posted_objects))+ ' items to UPLOADED file: '+ filename
-  
-
+    print 'Writing '+ str(len(posted_objects))+ ' items to UPLOADED file: uploaded_objects.txt'
     errfilename = 'uploaded_error_objects.txt'
-    print 'Writing '+ str(len(error_objects))+ ' objects to ERROR file: '+ errfilename
+    print 'Writing '+ str(len(error_objects))+ ' objects to ERROR file: '+ str(errfilename)
     WriteJSON(error_objects,errfilename)
