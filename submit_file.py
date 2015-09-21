@@ -17,19 +17,19 @@ from oauth2client.client import SignedJwtAssertionCredentials
 from apiclient.discovery import build
 import csv
 
-key_open = open('../keys.txt')
-keys = csv.DictReader(key_open,delimiter = '\t')
-for key in keys:
-    if key.get('server') == 'DCC':
-        encoded_access_key = key.get('user')
-        encoded_secret_access_key = key.get('password')
-    elif key.get('server') == 'GOOGLE':
-        client_email = key.get('user')
-        PW_file = key.get('password')
-    else:
-        print
-
 def main():
+    key_open = open('../keys.txt')
+    keys = csv.DictReader(key_open,delimiter = '\t')
+    for key in keys:
+        if key.get('server') == 'DCC':
+            encoded_access_key = key.get('user')
+            encoded_secret_access_key = key.get('password')
+        elif key.get('server') == 'GOOGLE':
+            client_email = key.get('user')
+            PW_file = key.get('password')
+        else:
+            print
+
     if (len(sys.argv) < 4):
         print "Error! use arguments: genome; Gdoc_name sheet_name"
     os.system("rmdir --ignore-fail-on-non-empty temp")
@@ -39,6 +39,8 @@ def main():
     #host = 'https://test.encodedcc.org/'
 
     #Static variables
+    my_lab = 'kevin-white'
+    my_award = 'U41HG007355'
     proggen = sys.argv[1]
     spreadname = sys.argv[2]
     workbook = sys.argv[3]
@@ -181,7 +183,9 @@ def main():
                             sub_object[pair[0]] = pair[1]
                         cell = [sub_object]
                         format = 'fastq'
-
+                else:
+                    if header == "replicate":
+                        rep = ''
             else:
                 if header == "path_to_file":
                     path = work.cell_value(row, colindex)
@@ -192,6 +196,7 @@ def main():
                         if proggen == 'dm3':
                             file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
                             assembly = 'dm3'
+                            path = file[0].rstrip()
                         elif proggen == 'WS220':
                             file = os.popen("find /raid/modencode/ce/processed/WS220/2* -name " + path).readlines()
                             assembly = 'ce10'
@@ -207,6 +212,10 @@ def main():
                            sys.exit()
                         path = file[0].rstrip()
                         format = 'bam'
+                        if proggen == 'dm3':
+                            os.system("cp " + path + " ./temp/")
+                            path = "./temp/" + os.path.basename(path)
+                            os.system("sh makeBamsdm3.sh ./temp/")
                     if (temp[1] == '.gz'):
                         file = file.replace('.gz', '')
                         temp = os.path.splitext(file)
@@ -229,7 +238,7 @@ def main():
                        print "File Converted to " + path
                        format = 'bigWig'
 
-                    if (temp[1] == '.bed'):
+                    if (temp[1] == '.regionPeak'):
                        os.system("cp " + path + " ./temp/")
                        if (proggen == 'dm3'):
                            os.system("sh makeBigBedsdm3.sh ./temp/")
@@ -240,11 +249,9 @@ def main():
                        else:
                            print("can't find assembly:" + assembly)
                            sys.exit()
-                       copied_path = "./temp/" + os.path.basename(path)
-                       path = copied_path.replace('.bed', '.bb')
+                       path = "./temp/" + os.path.basename(path)
                        print "new path_to_file:" + path
-                       format = 'bigBed'
-                       aliases = aliases.replace('bed', 'bigbed')
+                       format = 'bed'
 
                     if (temp[1] == '.rmblacklist'):
                        os.system("cp " + path + " ./temp/" + os.path.basename(path) + ".bed")
@@ -261,56 +268,57 @@ def main():
                        format = 'narrowPeak'
                      
         #compile and send to DCC
-        sys.exit()
-        DCC(path)
+        print '\n'+aliases
+        print rep
+        DCC(locals(),OUTPUT)
         #if file format is bed, rerun with original bed file
-        if (format == 'bigBed'):
-            print "Repeating submission with original bed file"
-            format = 'bed'
-            path = copied_path
-            aliases = aliases.replace('bigbed','bed')
-            DCC()
+        if (format == 'bed'):
+            print "\n\nRepeating submission with bigBed file"
+            derived_from = [aliases]
+            aliases = aliases.replace('-bed','-bigBed')
+            format = 'bigBed'
+            path = path.replace('.gz','.bb')
+            print "aliases: "+aliases
+            DCC(locals(),OUTPUT)
+
 
         ####Clean up
         os.system("rm -f ./temp/*")
     os.system("rmdir --ignore-fail-on-non-empty temp")
 
-def DCC():
-    print '\n\n'
+def DCC(d, OUTPUT):
+    encValData = 'encValData'
     #compile data
     data = {
-        "aliases": [aliases],
-        "dataset": exp,
-        "file_format": format,
-        "lab": my_lab,
-        "award": my_award,
+        "aliases": [d['aliases']],
+        "dataset": d['exp'],
+        "file_format": d['format'],
+        "lab": d['my_lab'],
+        "award": d['my_award'],
     }
     ## add specific data to data array
-    if ('derived_from' in headers):
-        if derived_from != None:
-            data['derived_from'] = derived_from
-            #del derived_from
-    if 'type' in globals():
-        data['file_format_type'] = type
-    if 'read_length' in globals():
-        data['read_length'] = read_length
-    if 'run_type' in globals():
-        data['run_type'] = run_type
-    if 'controlled_by' in globals():
-        data['controlled_by'] = controlled_by
+    if ('derived_from' in d['headers']):
+        if d['derived_from'] != None:
+            data['derived_from'] = d['derived_from']
+    if 'type' in d:
+        data['file_format_type'] = d['type']
+    if 'read_length' in d:
+        data['read_length'] = d['read_length']
+    if 'run_type' in d:
+        data['run_type'] = d['run_type']
+    if 'controlled_by' in d:
+        data['controlled_by'] = d['controlled_by']
         del controlled_by
-    if 'assembly' in globals():
-        data['assembly'] = assembly
-    if not output_type == None:
-        data["output_type"] = output_type
-        #del output_type    
-    if 'rep' in globals():
-        if not rep == None:
-            data['replicate'] = rep
-            #del rep
+    if 'assembly' in d:
+        data['assembly'] = d['assembly']
+    if d['output_type'] != None:
+        data["output_type"] = d['output_type']
+    if 'rep' in d:
+        if d['rep'] != None and d['rep'] != '':
+            data['replicate'] = d['rep']
     if (format is 'fastq'):
-        data["flowcell_details"] = cell
-        data["platform"] = platform
+        data["flowcell_details"] = d['cell']
+        data["platform"] = d['platform']
         #to remove paired_end
         data["paired_end"] = '1'
         data.pop('paired_end')
@@ -318,6 +326,50 @@ def DCC():
     #print data
     ####################
     # Local validation
+    # Local validation
+    chromInfo = '-chromInfo=%s/%s/chrom.sizes' % (encValData, d['proggen'])
+    #if d['proggen'] == 'dm3':
+    #    chromInfo += '.nochr'
+
+    validate_map = {
+        'bam': ['-type=bam', chromInfo],
+        #'bed': ['-type=bed3', chromInfo],
+        'bed': ['-type=bed6+', chromInfo],  # if this fails we will drop to bed3+
+        'bedLogR': ['-type=bigBed9+1', chromInfo, '-as=%s/as/bedLogR.as' % encValData],
+        'bed_bedLogR': ['-type=bed9+1', chromInfo, '-as=%s/as/bedLogR.as' % encValData],
+        'bedMethyl': ['-type=bigBed9+2', chromInfo, '-as=%s/as/bedMethyl.as' % encValData],
+        'bed_bedMethyl': ['-type=bed9+2', chromInfo, '-as=%s/as/bedMethyl.as' % encValData],
+        #'bigBed': ['-type=bigBed3', chromInfo],  # if this fails we will drop to bigBed3+
+        'bigBed': ['-type=bigBed6+', chromInfo],  # if this fails we will drop to bigBed3+
+        'bigWig': ['-type=bigWig', chromInfo],
+        'broadPeak': ['-type=bigBed6+3', chromInfo, '-as=%s/as/broadPeak.as' % encValData],
+        'bed_broadPeak': ['-type=bed6+3', chromInfo, '-as=%s/as/broadPeak.as' % encValData],
+        'fasta': ['-type=fasta'],
+        'fastq': ['-type=fastq'],
+        'gtf': None,
+        'idat': ['-type=idat'],
+        'narrowPeak': ['-type=bigBed6+4', chromInfo, '-as=%s/as/narrowPeak.as' % encValData],
+        'bed_narrowPeak': ['-type=bed6+4', chromInfo, '-as=%s/as/narrowPeak.as' % encValData],
+        'rcc': ['-type=rcc'],
+        'tar': None,
+        'tsv': None,
+        '2bit': None,
+        'csfasta': ['-type=csfasta'],
+        'csqual': ['-type=csqual'],
+        'bedRnaElements': ['-type=bed6+3', chromInfo, '-as=%s/as/bedRnaElements.as' % encValData],
+        'CEL': None,
+    }
+    if re.search('regionPeak.gz$',d['path']) != None:
+        validate_args = validate_map.get(data['file_format']+"_narrowPeak")
+    else:
+        validate_args = validate_map.get(data['file_format'])
+    if validate_args is not None:
+        print"Validating file as " + str(validate_args)
+        try:
+           subprocess.check_output(['./validateFiles'] + validate_args + [d['path']])
+        except subprocess.CalledProcessError as e:
+            print(e.output)
+            raise
     gzip_types = [
         "CEL",
         "bam",
@@ -341,84 +393,47 @@ def DCC():
         "tar",
     ]
 
-    magic_number = open(path, 'rb').read(2)
+    magic_number = open(d['path'], 'rb').read(2)
     is_gzipped = magic_number == b'\x1f\x8b'
-    print "format:" + format
-
 
     #print "gzipped?" + is_gzipped
-    if re.search('$bed', data['file_format']) != None:
+
+    if re.search('bed$', data['file_format']) != None:
         test = data['file_format']+"_"+data['file_format_type']
     else:
         test = data['file_format']
     if test in gzip_types:
-        gzip = subprocess.Popen(['gzip','-f',path])
-        path = path + '.gz'
-        if gzip.stderr != None:
-            assert is_gzipped, 'Expected gzipped file'
+        if is_gzipped is False:
+            gzip = subprocess.Popen(['gzip','-f',d['path']],)
+            gzip.wait()
+            d['path'] = d['path'] + '.gz'
+            if gzip.stderr != None:
+                assert is_gzipped, 'Expected gzipped file'
     else:
+        #could add step to unzip if needed
         assert not is_gzipped, 'Expected un-gzipped file'
-
 
     #calculate md5
     md5sum = hashlib.md5()
-    with open(path, 'rb') as f:
+    with open(d['path'], 'rb') as f:
         for chunk in iter(lambda: f.read(1024*1024), ''):
             md5sum.update(chunk)
     print "md5sum: ", md5sum.hexdigest()
     data['md5sum'] = md5sum.hexdigest()
-    data['file_size'] = os.path.getsize(path)
-    data['submitted_file_name'] = path
+    data['file_size'] = os.path.getsize(d['path'])
+    data['submitted_file_name'] = d['path']
+    print "submitted_file_name: " + d['path']
+    print "file_format: " + data['file_format']
+    if 'file_format_type' in data:
+        print "file_format_type: "+data['file_format_type']
 
-    chromInfo = '-chromInfo=%s/%s/chrom.sizes' % (encValData, proggen)
-    #if proggen == 'dm3':
-    #    chromInfo += '.nochr'
-
-    validate_map = {
-        'bam': ['-type=bam', chromInfo],
-        'bed': ['-type=bed3', chromInfo],
-        #'bed': ['-type=bed6+', chromInfo],  # if this fails we will drop to bed3+
-        'bedLogR': ['-type=bigBed9+1', chromInfo, '-as=%s/as/bedLogR.as' % encValData],
-        'bed_bedLogR': ['-type=bed9+1', chromInfo, '-as=%s/as/bedLogR.as' % encValData],
-        'bedMethyl': ['-type=bigBed9+2', chromInfo, '-as=%s/as/bedMethyl.as' % encValData],
-        'bed_bedMethyl': ['-type=bed9+2', chromInfo, '-as=%s/as/bedMethyl.as' % encValData],
-        'bigBed': ['-type=bigBed3', chromInfo],  # if this fails we will drop to bigBed3+
-       #'bigBed': ['-type=bigBed6+', chromInfo],  # if this fails we will drop to bigBed3+
-        'bigWig': ['-type=bigWig', chromInfo],
-        'broadPeak': ['-type=bigBed6+3', chromInfo, '-as=%s/as/broadPeak.as' % encValData],
-        'bed_broadPeak': ['-type=bed6+3', chromInfo, '-as=%s/as/broadPeak.as' % encValData],
-        'fasta': ['-type=fasta'],
-        'fastq': ['-type=fastq'],
-        'gtf': None,
-        'idat': ['-type=idat'],
-        'narrowPeak': ['-type=bigBed6+4', chromInfo, '-as=%s/as/narrowPeak.as' % encValData],
-        'bed_narrowPeak': ['-type=bed6+4', chromInfo, '-as=%s/as/narrowPeak.as' % encValData],
-        'rcc': ['-type=rcc'],
-        'tar': None,
-        'tsv': None,
-        '2bit': None,
-        'csfasta': ['-type=csfasta'],
-        'csqual': ['-type=csqual'],
-        'bedRnaElements': ['-type=bed6+3', chromInfo, '-as=%s/as/bedRnaElements.as' % encValData],
-        'CEL': None,
-    }
-
-    validate_args = validate_map.get(data['file_format'])
-    print "ohcho"
-    if validate_args is not None:
-        print"\nValidating file."
-        try:
-           validate = subprocess.check_output(['./validateFiles'] + validate_args + [path])
-        except validate.CalledProcessError as e:
-            print(e.output)
-            raise
     DCCheaders = {
         'Content-type': 'application/json',
         'Accept': 'application/json',
     }
     r = requests.post(
-        host + '/files',
-        auth=(encoded_access_key, encoded_secret_access_key),
+        d['host'] + '/files',
+        auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
         data=json.dumps(data),
         headers=DCCheaders,
     )
@@ -428,8 +443,8 @@ def DCC():
         #print r.json()
         print "post failed, trying patch"
         s = requests.patch(#change to put to overwrite,patch to ammend
-            host + '/' + aliases,
-            auth=(encoded_access_key, encoded_secret_access_key),
+            d['host'] + '/' + d['aliases'],
+            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
             data=json.dumps(data),
             headers=DCCheaders,
         )
@@ -454,8 +469,8 @@ def DCC():
         OUTPUT.write(temp)
         OUTPUT.write('\n')
         t = requests.patch(
-            host + aliases,
-            auth=(encoded_access_key, encoded_secret_access_key),
+            d['host'] + '/' + d['aliases'],
+            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
             data=json.dumps(data),
             headers=DCCheaders,
         )
@@ -474,7 +489,7 @@ def DCC():
         })
         print("Uploading file.")
         start = time.time()
-        subprocess.check_call(['aws', 's3', 'cp', path, creds['upload_url']], env=env)
+        subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
         end = time.time()
         duration = end - start
         print("Uploaded in %.2f seconds" % duration)

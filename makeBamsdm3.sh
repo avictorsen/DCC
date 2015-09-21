@@ -17,5 +17,5 @@ for filename in $1/*.bam; do
         }
     }' OFS="\t" $filename.sam > $filename.temp.sam
     samtools view -Sbh $filename.temp.sam > $filename
-    echo " $filename converted to BigBed"
+    echo " $filename now contains \"chr\""
 done
