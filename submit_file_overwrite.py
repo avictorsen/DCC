@@ -46,6 +46,24 @@ def main():
     workbook = sys.argv[3]
     encValData = 'encValData'
 
+    DCC_rep_pipeline = {
+        'alignments': 'modern:chip-seq-bwa-alignment-step-run-v-1-virtual',
+        'signal of unique reads': 'modern:chip-seq-unique-read-signal-generation-step-run-v-1-virtual',
+        'read-depth normalized signal': 'modern:chip-seq-depth-normalized-signal-generation-step-run-v-1-virtual',
+        'control normalized signal': 'modern:chip-seq-depth-normalized-signal-generation-step-run-v-1-virtual',
+        'peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
+        'optimal idr thresholded peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
+        'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual'
+        }
+
+    DCC_pooled_pipeline = {
+        'signal of unique reads': 'modern:chip-seq-replicate-pooled-unique-read-signal-generation-step-run-v-1-virtual',
+        'read-depth normalized signal': 'modern:chip-seq-replicate-pooled-read-depth-normalized-signal-generation-step-run-v-1-virtual',
+        'control normalized signal': 'modern:chip-seq-replicate-pooled-control-normalized-signal-generation-step-run-v-1-virtual',
+        'peaks': 'modern:chip-seq-idr-step-run-v-1-virtual',
+        'optimal idr thresholded peaks': 'modern:chip-seq-filter-for-optimal-idr-peaks-step-run-v-1-virtual',
+        'bigBed': 'modern:chip-seq-replicated-peaks-to-bigbed-step-run-v-1-virtual'
+        }
     #login credentials
     with open(PW_file) as f:
         private_key = f.read()
@@ -183,7 +201,9 @@ def main():
                             sub_object[pair[0]] = pair[1]
                         cell = [sub_object]
                         format = 'fastq'
-
+                else:
+                    if header == "replicate":
+                        rep = ''
             else:
                 if header == "path_to_file":
                     path = work.cell_value(row, colindex)
@@ -220,6 +240,7 @@ def main():
                     if (temp[1] == ".txt" or temp[1] == '.fastq'):
                         os.system("scp avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                         path = "./temp/" + os.path.basename(path)
+
                     if (temp[1] == '.wig'):
                        os.system("cp " + path + " ./temp/")
                        if (proggen == 'dm3'):
@@ -247,11 +268,9 @@ def main():
                        else:
                            print("can't find assembly:" + assembly)
                            sys.exit()
-                       copied_path = "./temp/" + os.path.basename(path)
-                       path = copied_path.replace('.gz', '.bb')
+                       path = "./temp/" + os.path.basename(path)
                        print "new path_to_file:" + path
-                       format = 'bigBed'
-                       aliases = aliases.replace('bed', 'bigbed')
+                       format = 'bed'
 
                     if (temp[1] == '.rmblacklist'):
                        os.system("cp " + path + " ./temp/" + os.path.basename(path) + ".bed")
@@ -266,20 +285,28 @@ def main():
                            sys.exit()
                        path = path + '.bb'
                        format = 'narrowPeak'
-                     
+
+        if rep == '':
+            step = DCC_pooled_pipeline[output_type]
+        else:
+            step = DCC_rep_pipeline[output_type]
         #compile and send to DCC
         print '\n'+aliases
         DCC(locals(),OUTPUT)
         #if file format is bed, rerun with original bed file
-        if (format == 'bigBed'):
-            print "\n\nRepeating submission with original bed file"
-            format = 'bed'
-            path = copied_path
-            #if proggen == 'WS220':
-            #    os.system("zcat " + path + " > " + path + ".temp | bedtools slop -i " + path + ".temp -g ./encValData/ce10/chrom.sizes -b 0 > " + path + ".temp2 | gzip -c " + path + ".temp2 > " + path)
-            aliases = aliases.replace('bigbed','bed')
-            print aliases
+        if (format == 'bed'):
+            print "\n\nRepeating submission with bigBed file"
+            derived_from = [aliases]
+            if rep == '':
+                step = DCC_pooled_pipeline['bigBed']
+            else:
+                step = DCC_rep_pipeline['bigBed']
+            aliases = aliases.replace('-bed','-bigBed')
+            format = 'bigBed'
+            path = path.replace('.gz','.bb')
+            print "aliases: "+aliases
             DCC(locals(),OUTPUT)
+
 
         ####Clean up
         os.system("rm -f ./temp/*")
@@ -313,7 +340,7 @@ def DCC(d, OUTPUT):
     if d['output_type'] != None:
         data["output_type"] = d['output_type']
     if 'rep' in d:
-        if d['rep'] != None:
+        if d['rep'] != None and d['rep'] != '':
             data['replicate'] = d['rep']
     if (format is 'fastq'):
         data["flowcell_details"] = d['cell']
@@ -321,6 +348,8 @@ def DCC(d, OUTPUT):
         #to remove paired_end
         data["paired_end"] = '1'
         data.pop('paired_end')
+    if 'step' in d:
+        data['step_run'] = d['step']
     
     #print data
     ####################
@@ -442,6 +471,7 @@ def DCC(d, OUTPUT):
     except requests.exceptions.HTTPError:
         #print r.json()
         print "post failed, trying patch"
+        data['status'] = 'uploading'
         s = requests.patch(#change to put to overwrite,patch to ammend
             d['host'] + '/' + d['aliases'],
             auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
@@ -515,7 +545,23 @@ def DCC(d, OUTPUT):
         })
         print("Uploading file.")
         start = time.time()
-        subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
+        i = 0
+        err_after_4 = True
+        while (i < 4):
+            try:
+                subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
+                err_after_4 = False
+                i = 5
+            except subprocess.CalledProcessError as e:
+                # The aws command returns a non-zero exit code on error.
+                print("Upload failed with exit code %d" % e.returncode)
+                print "Retrying"
+                time.sleep(2)
+                i = i+1
+                continue
+        if err_after_4 is True:
+            print 'upload failed too many times'
+            sys.exit()
         end = time.time()
         duration = end - start
         print("Uploaded in %.2f seconds" % duration)
