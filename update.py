@@ -96,7 +96,7 @@ Authentication is determined from the keys.txt file.
 			object_check = GetENCODE(str(response[u'@graph'][0][u'@id']),keys)
 	        #	print object_check
 			print 'uuid: ' + str(object_check[u'uuid'])
-                        filename.write(str(new_object['aliases'] + '\t' + str(object_check[u'uuid']))
+                        filename.write(str(new_object['aliases']) + '\t' + str(object_check[u'uuid']) + '\n')
 			posted_objects.append(object_check)
 		if response['status'] == 'error':
 			new_object.update({'description':response['description']})
