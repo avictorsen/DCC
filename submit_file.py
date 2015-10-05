@@ -37,7 +37,7 @@ def main():
     OUTPUT = open('submit_file_output.txt', 'w')
     host = 'https://www.encodeproject.org/'
     #host = 'https://test.encodedcc.org/'
-
+    #host = 'https://v33b1.demo.encodedcc.org/'
     #Static variables
     my_lab = 'kevin-white'
     my_award = 'U41HG007355'
@@ -132,6 +132,7 @@ def main():
     #object_schema = GetENCODE(('/profiles/file.json'),keys)
     try:
         response = requests.get(host+'profiles/file.json?limit=all',auth=(encoded_access_key, encoded_secret_access_key),headers={'content-type': 'application/json'})
+        print response
     except errors:
         print "couldn't get JSON schema"
         sys.exit()
@@ -240,7 +241,7 @@ def main():
                     if (temp[1] == ".txt" or temp[1] == '.fastq'):
                         os.system("scp avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                         path = "./temp/" + os.path.basename(path)
-
+                        format = 'fastq'
                     if (temp[1] == '.wig'):
                        os.system("cp " + path + " ./temp/")
                        if (proggen == 'dm3'):
@@ -290,7 +291,8 @@ def main():
         if rep == '':
             step = DCC_pooled_pipeline[output_type]
         else:
-            step = DCC_rep_pipeline[output_type]                     
+            None
+            #step = DCC_rep_pipeline[output_type]                     
         #compile and send to DCC
         print '\n'+aliases
         DCC(locals(),OUTPUT)
@@ -508,7 +510,6 @@ def DCC(d, OUTPUT):
        #print r.json()
         item = t.json()['@graph'][0]
        #print "r:", r.json()
-
        #POST file to S3
         creds = item['upload_credentials']
         env = os.environ.copy()

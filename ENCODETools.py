@@ -30,7 +30,7 @@ def GetENCODE(object_id,keys):
         url = keys['server']+object_id+'?limit=all'
         #print(url)
         try:
-            response = requests.get(url,auth=(keys['authid'],keys['authpw']), headers=HEADERS)
+            response = requests.get(url,auth=(keys['authid'],keys['authpw']), headers=HEADERS)#, verify=False)
             if not response.status_code == 200:
                 None
                 #print >> sys.stderr, response.text
@@ -77,7 +77,7 @@ def new_ENCODE(collection_id, object_json,keys):
     '''POST an ENCODE object as JSON and return the resppnse JSON'''
     url = keys['server'] +'/'+collection_id+'/'
     json_payload = json.dumps(object_json)
-    response = requests.post(url, auth=(keys['authid'],keys['authpw']), headers=HEADERS, data=json_payload)
+    response = requests.post(url, auth=(keys['authid'],keys['authpw']), headers=HEADERS, data=json_payload)#, verify=False)
     #print(response.status_code)
     if not response.status_code == 201:
         print >> sys.stderr, response.text
