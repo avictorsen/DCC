@@ -37,7 +37,7 @@ def main():
     OUTPUT = open('submit_file_output.txt', 'w')
     host = 'https://www.encodeproject.org/'
     #host = 'https://test.encodedcc.org/'
-
+    #host = 'https://v33b1.demo.encodedcc.org/'
     #Static variables
     my_lab = 'kevin-white'
     my_award = 'U41HG007355'
@@ -132,6 +132,7 @@ def main():
     #object_schema = GetENCODE(('/profiles/file.json'),keys)
     try:
         response = requests.get(host+'profiles/file.json?limit=all',auth=(encoded_access_key, encoded_secret_access_key),headers={'content-type': 'application/json'})
+        #print response
     except errors:
         print "couldn't get JSON schema"
         sys.exit()
@@ -455,66 +456,56 @@ def DCC(d, OUTPUT):
     print "format type: " + data['file_format'] 
     if 'file_format_type' in data:
         print data['file_format_type']
-
+    print "run_step: " + data['step_run']
     DCCheaders = {
         'Content-type': 'application/json',
         'Accept': 'application/json',
     }
-    r = requests.post(
-        d['host'] + '/files',
+    print "trying patch"
+    data['status'] = 'uploading'
+    s = requests.patch(#change to put to overwrite,patch to ammend
+        d['host'] + '/' + d['aliases'],
         auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
         data=json.dumps(data),
         headers=DCCheaders,
     )
     try:
-        r.raise_for_status()
+        s.raise_for_status()
     except requests.exceptions.HTTPError:
-        #print r.json()
-        print "post failed, trying patch"
-        data['status'] = 'uploading'
-        s = requests.patch(#change to put to overwrite,patch to ammend
-            d['host'] + '/' + d['aliases'],
-            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
-            data=json.dumps(data),
-            headers=DCCheaders,
-        )
-        try:
-            s.raise_for_status()
-        except requests.exceptions.HTTPError:
-            print '\ndata: ', data
-            print 
-            print 'r: ', r.json()
-            print 
-            print('patch failed: %s %s' % (s.status_code, s.reason))
-            print 
-            print 's: ', s.json()
-            sys.exit()
-        print "posting metadata patch!"
-        #print "s:", s.json()
-        ID = s.json()['@graph'][0]['accession']
-        print "ID: " + ID
-        renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
-        response = json.loads(os.popen(renew_upload_credentials).read())
-        if '@graph' in response:
-            item = response['@graph'][0]
-        else:
-            print response
-            sys.exit()
-        #print item['uplaod_credentials']['access_key']
-        #POST file to S3
-        creds = item['upload_credentials']
-        env = os.environ.copy()
-        env.update({
-            'AWS_ACCESS_KEY_ID': creds['access_key'],
-            'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
-            'AWS_SECURITY_TOKEN': creds['session_token'],
-        })
-        print("Uploading file.")
-        start = time.time()
-        subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
-        end = time.time()
-        duration = end - start
-        print("Uploaded in %.2f seconds" % duration)
+        print '\ndata: ', data
+        print 
+        print 'r: ', r.json()
+        print 
+        print('patch failed: %s %s' % (s.status_code, s.reason))
+        print 
+        print 's: ', s.json()
+        sys.exit()
+    print "posting metadata patch!"
+    #print "s:", s.json()
+    ID = s.json()['@graph'][0]['accession']
+    print "ID: " + ID
+    renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
+    response = json.loads(os.popen(renew_upload_credentials).read())
+    if '@graph' in response:
+        item = response['@graph'][0]
+    else:
+        print response
+        sys.exit()
+    #print item['uplaod_credentials']['access_key']
+    #POST file to S3
+    creds = item['upload_credentials']
+    env = os.environ.copy()
+    env.update({
+        'AWS_ACCESS_KEY_ID': creds['access_key'],
+        'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
+        'AWS_SECURITY_TOKEN': creds['session_token'],
+    })
+    print("Uploading file.")
+    start = time.time()
+    subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
+    end = time.time()
+    duration = end - start
+    print("Uploaded in %.2f seconds" % duration)
 
     if r.json()[u'status'] == 'success':
         print 'uuid: ',r.json()['@graph'][0]['uuid']
