@@ -81,7 +81,6 @@ Authentication is determined from the keys.txt file.
         #print('Checking Object.')
         if object_id != '':
             old_object = GetENCODE(object_id,keys)
-
         # if object is not found, verify and post it
         if (old_object.get(u'title') == u'Not Found') | (old_object.get(u'title') == u'Home'):
             new_object = FlatJSON(new_object,keys)

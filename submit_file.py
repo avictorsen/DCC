@@ -49,11 +49,11 @@ def main():
     DCC_rep_pipeline = {
         'alignments': 'modern:chip-seq-bwa-alignment-step-run-v-1-virtual',
         'signal of unique reads': 'modern:chip-seq-unique-read-signal-generation-step-run-v-1-virtual',
-        'read-depth normalized signal': 'modern:chip-seq-depth-normalized-signal-generation-step-run-v-1-virtual',
+        'read-depth normalized signal': 'modern:chip-seq-read-depth-normalized-signal-generation-step-run-v-1-virtual',
         'control normalized signal': 'modern:chip-seq-control-normalized-signal-generation-step-run-v-1-virtual',
         'peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
-        'optimal idr thresholded peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
-        'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual'
+        'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual',
+        'optimal idr thresholded peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual'
         }
 
     DCC_pooled_pipeline = {
@@ -61,8 +61,8 @@ def main():
         'read-depth normalized signal': 'modern:chip-seq-replicate-pooled-read-depth-normalized-signal-generation-step-run-v-1-virtual',
         'control normalized signal': 'modern:chip-seq-replicate-pooled-control-normalized-signal-generation-step-run-v-1-virtual',
         'peaks': 'modern:chip-seq-idr-step-run-v-1-virtual',
-        'optimal idr thresholded peaks': 'modern:chip-seq-filter-for-optimal-idr-peaks-step-run-v-1-virtual',
-        'bigBed': 'modern:chip-seq-replicated-peaks-to-bigbed-step-run-v-1-virtual'
+        'bigBed': 'modern:chip-seq-replicated-peaks-to-bigbed-step-run-v-1-virtual',
+        'optimal idr thresholded peaks': 'modern:chip-seq-filter-for-optimal-idr-peaks-step-run-v-1-virtual'
         }
     #login credentials
     with open(PW_file) as f:
@@ -132,7 +132,7 @@ def main():
     #object_schema = GetENCODE(('/profiles/file.json'),keys)
     try:
         response = requests.get(host+'profiles/file.json?limit=all',auth=(encoded_access_key, encoded_secret_access_key),headers={'content-type': 'application/json'})
-        print response
+        #print response
     except errors:
         print "couldn't get JSON schema"
         sys.exit()
@@ -291,8 +291,7 @@ def main():
         if rep == '':
             step = DCC_pooled_pipeline[output_type]
         else:
-            None
-            #step = DCC_rep_pipeline[output_type]                     
+            step = DCC_rep_pipeline[output_type]                     
         #compile and send to DCC
         print '\n'+aliases
         DCC(locals(),OUTPUT)
@@ -457,7 +456,7 @@ def DCC(d, OUTPUT):
     print "file_format: " + data['file_format']
     if 'file_format_type' in data:
         print "file_format_type: "+data['file_format_type']
-
+    print "run_step: " + data['step_run']
     DCCheaders = {
         'Content-type': 'application/json',
         'Accept': 'application/json',
