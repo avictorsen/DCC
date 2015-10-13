@@ -285,7 +285,6 @@ def main():
                            print("can't find assembly:" + proggen)
                            sys.exit()
                        path = path + '.bb'
-
                        format = 'narrowPeak'
 
         if rep == '':
@@ -356,7 +355,6 @@ def DCC(d, OUTPUT):
     #print data
     ####################
     # Local validation
-    # Local validation
     chromInfo = '-chromInfo=%s/%s/chrom.sizes' % (encValData, d['proggen'])
     #if d['proggen'] == 'dm3':
     #    chromInfo += '.nochr'
@@ -425,6 +423,8 @@ def DCC(d, OUTPUT):
 
     magic_number = open(d['path'], 'rb').read(2)
     is_gzipped = magic_number == b'\x1f\x8b'
+
+    print "format:" + d['format']
 
     #print "gzipped?" + is_gzipped
 
