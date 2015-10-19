@@ -13,8 +13,9 @@ from ENCODETools import CleanJSON
 from ENCODETools import FlatJSON
 #from ENCODETools import EmbedJSON
 from ENCODETools import WriteJSON
+import sys
 import csv
-
+import pickle
 
 if __name__ == "__main__":
     '''
@@ -76,46 +77,47 @@ Authentication is determined from the keys.txt file.
             object_uuid = ''
         #print('Getting Schema.')
         object_schema = GetENCODE(('/profiles/' + object_type + '.json'),keys)
-
         # check to see if object already exists
         #print('Checking Object.')
         if object_id != '':
             old_object = GetENCODE(object_id,keys)
         # if object is not found, verify and post it
         if (old_object.get(u'title') == u'Not Found') | (old_object.get(u'title') == u'Home'):
-            new_object = FlatJSON(new_object,keys)
-            print '\n\nalias: ' + str(new_object[u'aliases']) + ' is new.'
+            #new_object = FlatJSON(new_object,keys)
+            print '\n\nalias:',new_object[u'aliases'][0],'is new.'
             # test the new object
-            if ValidJSON(object_type,object_id,new_object,keys):
+            if ValidJSON(object_schema,object_type,object_id,new_object,keys):
             	# post the new object(s). SHOULD HANDLE ERRORS GRACEFULLY
                 new_object = CleanJSON(new_object,object_schema,'POST')
                 response = new_ENCODE(object_type,new_object,keys)
 		#print response['status']
 		if response['status'] == 'success':
 			object_check = GetENCODE(str(response[u'@graph'][0][u'@id']),keys)
-	        #	print object_check
-			print 'uuid: ' + str(object_check[u'uuid'])
-                        filename.write(str(new_object['aliases']) + '\t' + str(object_check[u'uuid']) + '\n')
+	         #	print object_check
+			print 'uuid:', object_check[u'uuid']
+                        filename.write(str(new_object['aliases'][0])+'\t'+str(object_check['uuid'])+'\n')
 			posted_objects.append(object_check)
-		if response['status'] == 'error':
+                elif response['status'] == 'error':
 			new_object.update({'description':response['description']})
 			new_object.update({'errors':response['errors']})
 			new_object.update({'object_type':object_type})
 			error_objects.append(new_object)
+                else:
+                    sys.exit()    
         # if object is found, check for differences and patch it if needed/valid.
         elif put_status:
             # clean object of unpatchable or nonexistent properties. SHOULD INFORM USER OF ANYTHING THAT DOESN"T GET PUT.
             new_object = CleanJSON(new_object,object_schema,'POST')
-            new_object = FlatJSON(new_object,keys)
+            #new_object = FlatJSON(new_object,keys)
             print('Running a put.')
-            print(new_object)
             response = replace_ENCODE(object_id,new_object,keys)
         else:
             # clean object of unpatchable or nonexistent properties. SHOULD INFORM USER OF ANYTHING THAT DOESN"T GET PATCHED.
             new_object = CleanJSON(new_object,object_schema,'PATCH')
-            new_object = FlatJSON(new_object,keys)
+            #new_object = FlatJSON(new_object,keys)
+            #print new_object
             # flatten original (to match new)
-            old_object = FlatJSON(old_object,keys)
+            #old_object = FlatJSON(old_object,keys)
             # compare new object to old one, remove identical fields.
             for key in new_object.keys():
                 if new_object.get(key) == old_object.get(key):
@@ -128,7 +130,7 @@ Authentication is determined from the keys.txt file.
                 for key,value in new_object.items():
                     patch_single = {}
                     patch_single[key] = value
-                    #print(patch_single)
+                    #print value
                     response = patch_ENCODE(object_id,patch_single,keys)
                 patched_objects.append(new_object)
             else:

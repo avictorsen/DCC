@@ -66,7 +66,7 @@ for i in result:
 try:
     selflink
 except NameError:
-    print 'spreadsheet not found'
+    print 'spreadsheet '+i['id']+':'+i['selflink']+' not found'
     sys.exit()
 print "Opening spreadsheet: "+ spreadname
 file = 'temp_submit_file.xlsx'
@@ -127,8 +127,8 @@ for row in range(1, work.nrows, 1):
             print "no match for " + header
         else:
             value = work.cell_value(row, colindex)
-            print header+':',value
-            if value is not '':
+            print header+': \"'+value+'\"'
+            if len(value) > 0:
                 # need to fix dates before adding them. Google API does not allow disabling of autoform$
                 # use regexp to check for dates (MM/DD/YYYY)
                 # then format them as we enter them (YYYY-MM-DD)
@@ -156,17 +156,18 @@ for row in range(1, work.nrows, 1):
                     if header == 'attachment':
                         sub_object = {}
                         print 'filename' + str(value)
-                        sub_object[u'href'] = get_data_uri(value)#image data
-                            #print new_object
+                        value = pic2str(value)
+                        #print sub_object
                     else:
                         value = value.split(', ')
-                        sub_object = dict()
-                        for prop_value_pair in value:
-                            pair = prop_value_pair.split(': ')
-                            if pair[0] == 'start' or pair[0] == 'end':
-                                sub_object[pair[0]] = int(pair[1])
-                            else:
-                                sub_object[pair[0]] = pair[1]
+                    sub_object = dict()
+                    for prop_value_pair in value:
+                        pair = prop_value_pair.split(': ')
+                        print pair[0]
+                        if pair[0] == 'start' or pair[0] == 'end' or pair[0] == 'size':
+                            sub_object[pair[0]] = int(pair[1])
+                        else:
+                            sub_object[pair[0]] = pair[1]
                     new_object.update({header: sub_object})
     object_list.append(new_object)
 

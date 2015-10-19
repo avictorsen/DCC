@@ -474,8 +474,6 @@ def DCC(d, OUTPUT):
     except requests.exceptions.HTTPError:
         print '\ndata: ', data
         print 
-        print 'r: ', r.json()
-        print 
         print('patch failed: %s %s' % (s.status_code, s.reason))
         print 
         print 's: ', s.json()
@@ -491,42 +489,29 @@ def DCC(d, OUTPUT):
     else:
         print response
         sys.exit()
+    print "posting metadata!"
+
     #print item['uplaod_credentials']['access_key']
     #POST file to S3
-    creds = item['upload_credentials']
-    env = os.environ.copy()
-    env.update({
-        'AWS_ACCESS_KEY_ID': creds['access_key'],
-        'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
-        'AWS_SECURITY_TOKEN': creds['session_token'],
-    })
-    print("Uploading file.")
-    start = time.time()
-    subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
-    end = time.time()
-    duration = end - start
-    print("Uploaded in %.2f seconds" % duration)
-
-    if r.json()[u'status'] == 'success':
-        print 'uuid: ',r.json()['@graph'][0]['uuid']
-        temp = r.json()['@graph'][0]['aliases'][0]
+    if s.json()[u'status'] == 'success':
+        print 'uuid: ',s.json()['@graph'][0]['uuid']
+        print("Uploading file.")
+        temp = s.json()['@graph'][0]['aliases'][0]
         OUTPUT.write(temp)
         OUTPUT.write('\t')
-        temp = r.json()['@graph'][0]['uuid']
+        temp = s.json()['@graph'][0]['uuid']
         OUTPUT.write(temp)
         OUTPUT.write('\n')
+        renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
         t = requests.patch(
             d['host'] + d['aliases'],
             auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
             data=json.dumps(data),
             headers=DCCheaders,
         )
-        print "posting metadata!"
-        #print r.json()
-        item = t.json()['@graph'][0]
-        #print "r:", r.json()
-
-       #POST file to S3
+        item = json.loads(os.popen(renew_upload_credentials).read())['@graph'][0]
+        #item = t.json()['@graph'][0]
+        #POST file to S3
         creds = item['upload_credentials']
         env = os.environ.copy()
         env.update({

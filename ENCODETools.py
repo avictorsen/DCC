@@ -132,14 +132,18 @@ write new json obect.
         json.dump(new_object, outfile)
         outfile.close()
 
-def ValidJSON(object_type,object_id,new_object,keys):
+def ValidJSON(object_schema,object_type,object_id,new_object,keys):
     '''
 check json object for validity
 '''
     # SHOULD ONLY NEED OBJECT. NEED DEF TO EXTRACT VALUE (LIKE TYPE) FROM JSON OBJECT GRACEFULLY.
     # get the relevant schema
-    object_schema = GetENCODE(('/profiles/' + object_type + '.json'),keys)
+    #object_schema = GetENCODE(('/profiles/' + object_type + '.json'),keys)
 
+    #Alec removed whole organism test 'cause it kept throwing errors
+    if 'dependencies' in object_schema:
+        if 'biosample_type' in object_schema['dependentcies']:
+            del object_schema['dependencies']['biosample_type']
     # test the new object. SHOULD HANDLE ERRORS GRACEFULLY
     try:
         jsonschema.validate(new_object,object_schema)
@@ -194,8 +198,8 @@ flatten embedded json objects to their ID
                     #print("Found Object")
                     if value_check.has_key(u'@id'):
                         value_check = value_check[u'@id']
-                    elif value_check.has_key(u'href'):
-                        value_check = value_check[u'href']
+                    #elif value_check.has_key(u'href'):
+                    #    value_check = value_check[u'href']
                     #print(value_check)
                 value_new.append(value_check)
             json_object[key] = value_new

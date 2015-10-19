@@ -52,17 +52,17 @@ def main():
         'read-depth normalized signal': 'modern:chip-seq-read-depth-normalized-signal-generation-step-run-v-1-virtual',
         'control normalized signal': 'modern:chip-seq-control-normalized-signal-generation-step-run-v-1-virtual',
         'peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
-        'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual',
-        'optimal idr thresholded peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual'
+        'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual'
         }
 
     DCC_pooled_pipeline = {
         'signal of unique reads': 'modern:chip-seq-replicate-pooled-unique-read-signal-generation-step-run-v-1-virtual',
         'read-depth normalized signal': 'modern:chip-seq-replicate-pooled-read-depth-normalized-signal-generation-step-run-v-1-virtual',
         'control normalized signal': 'modern:chip-seq-replicate-pooled-control-normalized-signal-generation-step-run-v-1-virtual',
-        'peaks': 'modern:chip-seq-idr-step-run-v-1-virtual',
-        'bigBed': 'modern:chip-seq-replicated-peaks-to-bigbed-step-run-v-1-virtual',
-        'optimal idr thresholded peaks': 'modern:chip-seq-filter-for-optimal-idr-peaks-step-run-v-1-virtual'
+        'peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual', #same as replicate
+        'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual', #same as replicate
+        'optimal idr thresholded peaks': 'modern:chip-seq-optimal-idr-step-run-v-1-virtual',
+        'optimal idr bigBed': 'modern:chip-seq-optimal-idr-threasholded-preaks-to-bigbed-step-run-v-1-virtual'
         }
     #login credentials
     with open(PW_file) as f:
@@ -299,7 +299,10 @@ def main():
             print "\n\nRepeating submission with bigBed file"
             derived_from = [aliases]
             if rep == '':
-                step = DCC_pooled_pipeline['bigBed']
+                if output_type == "optimal idr threasholded peaks":
+                    step = DCC_pooled_pipeline['optimal idr bigBed']
+                else:
+                    step = DCC_pooled_pipeline['bigBed']
             else:
                 step = DCC_rep_pipeline['bigBed']
             aliases = aliases.replace('-bed','-bigBed')
