@@ -142,7 +142,7 @@ check json object for validity
 
     #Alec removed whole organism test 'cause it kept throwing errors
     if 'dependencies' in object_schema:
-        if 'biosample_type' in object_schema['dependentcies']:
+        if 'biosample_type' in object_schema['dependencies']:
             del object_schema['dependencies']['biosample_type']
     # test the new object. SHOULD HANDLE ERRORS GRACEFULLY
     try:

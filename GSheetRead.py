@@ -127,8 +127,8 @@ for row in range(1, work.nrows, 1):
             print "no match for " + header
         else:
             value = work.cell_value(row, colindex)
-            print header+': \"'+value+'\"'
-            if len(value) > 0:
+            print '{}: \"{}\"'.format(*[header,value])
+            if value != '':
                 # need to fix dates before adding them. Google API does not allow disabling of autoform$
                 # use regexp to check for dates (MM/DD/YYYY)
                 # then format them as we enter them (YYYY-MM-DD)
@@ -149,7 +149,10 @@ for row in range(1, work.nrows, 1):
                         sub_object = dict()
                         for prop_value_pair in value:
                             pair = prop_value_pair.split(': ')
-                            sub_object[pair[0]] = pair[1]
+                            if pair[0] == 'lane':
+                                sub_object[pair[0]] = int(pair[1])
+                            else:
+                                sub_object[pair[0]] = pair[1]
                         new_object.update({header: [sub_object]})
                             # upload image as attachment object
                 elif object_schema[u'properties'][header][u'type'] == 'object':
@@ -164,7 +167,7 @@ for row in range(1, work.nrows, 1):
                     for prop_value_pair in value:
                         pair = prop_value_pair.split(': ')
                         print pair[0]
-                        if pair[0] == 'start' or pair[0] == 'end' or pair[0] == 'size':
+                        if pair[0] == 'start' or pair[0] == 'end' or pair[0] == 'size' or pair[0] == 'height' or pair[0] == 'width':
                             sub_object[pair[0]] = int(pair[1])
                         else:
                             sub_object[pair[0]] = pair[1]

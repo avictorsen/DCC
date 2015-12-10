@@ -35,8 +35,8 @@ def main():
     os.system("rmdir --ignore-fail-on-non-empty temp")
     os.system("mkdir temp")
     OUTPUT = open('submit_file_output.txt', 'w')
-    host = 'https://www.encodeproject.org/'
-    #host = 'https://test.encodedcc.org/'
+    #host = 'https://www.encodeproject.org/'
+    host = 'https://test.encodedcc.org/'
     #host = 'https://v33b1.demo.encodedcc.org/'
     #Static variables
     my_lab = 'kevin-white'
@@ -70,16 +70,21 @@ def main():
     credentials = SignedJwtAssertionCredentials(client_email, private_key,'https://www.googleapis.com/auth/drive.readonly')
     http_auth = credentials.authorize(Http())
     drivelogin = build('drive', 'v2', http=http_auth)
-
     #gets list of googleDOC files
     result = []
     page_token = None
     while True:
         try:
-            param = {'corpus': 'DOMAIN', 'q': "title contains '_'"}
+            #corpus:DOMAIN not working as param
+            param = {'spaces': 'drive', 'q': "title contains '_'"}
             files = drivelogin.files().list(**param).execute()
+            items = files.get('items', [])
+            if not items:
+                print "no files found"
+                sys.exit()
             result.extend(files['items'])
             page_token = files.get('nextPageToken')
+            #break loop 
             if not page_token:
                 break
         except errors.HttpError, error:
@@ -216,6 +221,10 @@ def main():
                             file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
                             assembly = 'dm3'
                             path = file[0].rstrip()
+                        elif proggen == 'dm6':
+                            file = os.popen("find /raid/modencode/dm/processed/dm6/2* -name " + path).readlines()
+                            assembly = 'dm6'
+                            path = file[0].rstrip()
                         elif proggen == 'WS220':
                             file = os.popen("find /raid/modencode/ce/processed/WS220/2* -name " + path).readlines()
                             assembly = 'ce10'
@@ -231,7 +240,7 @@ def main():
                            sys.exit()
                         path = file[0].rstrip()
                         format = 'bam'
-                        if proggen == 'dm3':
+                        if proggen == 'dm3' or proggen == 'dm6':
                             os.system("cp " + path + " ./temp/")
                             path = "./temp/" + os.path.basename(path)
                             os.system("sh makeBamsdm3.sh ./temp/")
@@ -287,9 +296,9 @@ def main():
                        path = path + '.bb'
                        format = 'narrowPeak'
 
-        if rep == '':
+        if rep == '' and output_type != 'reads':
             step = DCC_pooled_pipeline[output_type]
-        else:
+        elif output_type != 'reads':
             step = DCC_rep_pipeline[output_type]                     
         #compile and send to DCC
         print '\n'+aliases
@@ -338,7 +347,6 @@ def DCC(d, OUTPUT):
         data['run_type'] = d['run_type']
     if 'controlled_by' in d:
         data['controlled_by'] = d['controlled_by']
-        del controlled_by
     if 'assembly' in d:
         data['assembly'] = d['assembly']
     if d['output_type'] != None:
@@ -346,7 +354,7 @@ def DCC(d, OUTPUT):
     if 'rep' in d:
         if d['rep'] != None and d['rep'] != '':
             data['replicate'] = d['rep']
-    if (format is 'fastq'):
+    if (d['format'] is 'fastq'):
         data["flowcell_details"] = d['cell']
         data["platform"] = d['platform']
         #to remove paired_end
@@ -356,6 +364,7 @@ def DCC(d, OUTPUT):
         data['step_run'] = d['step']
     
     #print data
+    #sys.exit()
     ####################
     # Local validation
     chromInfo = '-chromInfo=%s/%s/chrom.sizes' % (encValData, d['proggen'])
@@ -459,7 +468,8 @@ def DCC(d, OUTPUT):
     print "file_format: " + data['file_format']
     if 'file_format_type' in data:
         print "file_format_type: "+data['file_format_type']
-    print "run_step: " + data['step_run']
+    if 'step_run' in data:
+        print "run_step: " + data['step_run']
     DCCheaders = {
         'Content-type': 'application/json',
         'Accept': 'application/json',

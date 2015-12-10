@@ -49,10 +49,9 @@ def main():
     DCC_rep_pipeline = {
         'alignments': 'modern:chip-seq-bwa-alignment-step-run-v-1-virtual',
         'signal of unique reads': 'modern:chip-seq-unique-read-signal-generation-step-run-v-1-virtual',
-        'read-depth normalized signal': 'modern:chip-seq-depth-normalized-signal-generation-step-run-v-1-virtual',
-        'control normalized signal': 'modern:chip-seq-depth-normalized-signal-generation-step-run-v-1-virtual',
+        'read-depth normalized signal': 'modern:chip-seq-read-depth-normalized-signal-generation-step-run-v-1-virtual',
+        'control normalized signal': 'modern:chip-seq-control-normalized-signal-generation-step-run-v-1-virtual',
         'peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
-        'optimal idr thresholded peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
         'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual'
         }
 
@@ -60,9 +59,10 @@ def main():
         'signal of unique reads': 'modern:chip-seq-replicate-pooled-unique-read-signal-generation-step-run-v-1-virtual',
         'read-depth normalized signal': 'modern:chip-seq-replicate-pooled-read-depth-normalized-signal-generation-step-run-v-1-virtual',
         'control normalized signal': 'modern:chip-seq-replicate-pooled-control-normalized-signal-generation-step-run-v-1-virtual',
-        'peaks': 'modern:chip-seq-idr-step-run-v-1-virtual',
-        'optimal idr thresholded peaks': 'modern:chip-seq-filter-for-optimal-idr-peaks-step-run-v-1-virtual',
-        'bigBed': 'modern:chip-seq-replicated-peaks-to-bigbed-step-run-v-1-virtual'
+        'peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual', #same as replicate
+        'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual', #same as replicate
+        'optimal idr thresholded peaks': 'modern:chip-seq-optimal-idr-step-run-v-1-virtual',
+        'optimal idr bigBed': 'modern:chip-seq-optimal-idr-threasholded-preaks-to-bigbed-step-run-v-1-virtual'
         }
     #login credentials
     with open(PW_file) as f:
@@ -343,7 +343,7 @@ def DCC(d, OUTPUT):
     if 'rep' in d:
         if d['rep'] != None and d['rep'] != '':
             data['replicate'] = d['rep']
-    if (format is 'fastq'):
+    if (d['format'] is 'fastq'):
         data["flowcell_details"] = d['cell']
         data["platform"] = d['platform']
         #to remove paired_end
