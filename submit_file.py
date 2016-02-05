@@ -35,15 +35,16 @@ def main():
     os.system("rmdir --ignore-fail-on-non-empty temp")
     os.system("mkdir temp")
     OUTPUT = open('submit_file_output.txt', 'w')
-    #host = 'https://www.encodeproject.org/'
-    host = 'https://test.encodedcc.org/'
+    host = 'https://www.encodeproject.org/'
+    #host = 'https://test.encodedcc.org/'
     #host = 'https://v33b1.demo.encodedcc.org/'
     #Static variables
     my_lab = 'kevin-white'
     my_award = 'U41HG007355'
-    proggen = sys.argv[1]
-    spreadname = sys.argv[2]
-    workbook = sys.argv[3]
+    request_type = sys.argv[1]
+    proggen = sys.argv[2]
+    spreadname = sys.argv[3]
+    workbook = sys.argv[4]
     encValData = 'encValData'
 
     DCC_rep_pipeline = {
@@ -228,6 +229,9 @@ def main():
                         elif proggen == 'WS220':
                             file = os.popen("find /raid/modencode/ce/processed/WS220/2* -name " + path).readlines()
                             assembly = 'ce10'
+                        elif proggen == 'WS245':
+                            file = os.popen("find /media/mybooklive/modencode/ce/processed/WS235/2* -name " + path).readlines()
+                            assembly = 'ce11'
                         else:
                             print 'Genome not recognized'
                             sys.exit()
@@ -244,6 +248,10 @@ def main():
                             os.system("cp " + path + " ./temp/")
                             path = "./temp/" + os.path.basename(path)
                             os.system("sh makeBamsdm3.sh ./temp/")
+                        if proggen == 'WS245':
+                            os.system("cp " + path + " ./temp/")
+                            path = "./temp/" + os.path.basename(path)
+                            os.system("sh makeBamsce11.sh ./temp/")
                     if (temp[1] == '.gz'):
                         file = file.replace('.gz', '')
                         temp = os.path.splitext(file)
@@ -259,6 +267,9 @@ def main():
                        elif (proggen == 'WS220'):
                            os.system("sh makeBigWigsce10.sh ./temp/")
                            assembly = 'ce10'
+                       elif (proggen == 'WS245'):
+                           os.system("sh makeBigWigsce11.sh ./temp/")
+                           assembly = 'ce11'
                        else:
                            print("can't find assembly:" + assembly)
                            sys.exit()
@@ -275,6 +286,10 @@ def main():
                        elif (proggen == 'WS220'):
                            os.system("sh makeBigBedsce10.sh ./temp/")
                            assembly = 'ce10'
+                       elif (proggen == 'WS245'):
+                           #os.system("sh makeBedsce11.sh ./temp/")
+                           os.system("sh makeBigBedsce11.sh ./temp/")
+                           assembly = 'ce11'
                        else:
                            print("can't find assembly:" + assembly)
                            sys.exit()
@@ -474,18 +489,21 @@ def DCC(d, OUTPUT):
         'Content-type': 'application/json',
         'Accept': 'application/json',
     }
+    if d['request_type'] == 'overwrite':
+        data['status'] = 'uploading'
+
     r = requests.post(
         d['host'] + '/files',
         auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
         data=json.dumps(data),
         headers=DCCheaders,
     )
+    print "posting metadata!"
     try:
         r.raise_for_status()
     except requests.exceptions.HTTPError:
-        #print r.json()
+        print "r:",r.json()
         print "post failed, trying patch"
-
         s = requests.patch(#change to put to overwrite,patch to ammend
             d['host'] + '/' + d['aliases'],
             auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
@@ -503,26 +521,38 @@ def DCC(d, OUTPUT):
             print 
             print 's: ', s.json()
             sys.exit()
-        print "posting metadata patch!"
     if r.json()[u'status'] == 'success':
         print 'uuid: ',r.json()['@graph'][0]['uuid']
-        temp = r.json()['@graph'][0]['aliases'][0]
-        OUTPUT.write(temp)
-        OUTPUT.write('\t')
         temp = r.json()['@graph'][0]['uuid']
+    elif s.json()[u'status'] == 'success':
+        print 'uuid: ',s.json()['@graph'][0]['uuid']
+        temp = s.json()['@graph'][0]['uuid']
+
+    ##### upload files
+    if temp != "" and d['request_type'] == 'patch':
+        print "metadata patched!"
+    ############### post ###############
+    elif temp != "" and d['request_type'] == 'post':
+        OUTPUT.write(d['aliases'])
+        OUTPUT.write('\t')
         OUTPUT.write(temp)
         OUTPUT.write('\n')
         t = requests.patch(
-            d['host'] + '/' + d['aliases'],
+            d['host'] + '/' + temp,
             auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
             data=json.dumps(data),
             headers=DCCheaders,
         )
-        print "posting metadata!"
-       #print r.json()
+        try:
+            t.raise_for_status()
+        except:
+            print "t: ",t.json()
+            print "he's dead jim"
+            sys.exit();
+        #print r.json()
         item = t.json()['@graph'][0]
-       #print "r:", r.json()
-       #POST file to S3
+        #print "r:", r.json()
+        #POST file to S3
         creds = item['upload_credentials']
         env = os.environ.copy()
         env.update({
@@ -554,7 +584,61 @@ def DCC(d, OUTPUT):
         end = time.time()
         duration = end - start
         print("Uploaded in %.2f seconds" % duration)
+    ############# overwrite ################
+    elif temp != "" and d['request_type'] == 'overwrite':
+        ID = s.json()['@graph'][0]['accession']
+        print "ID: " + ID
+        print("Uploading file.")
+        temp = s.json()['@graph'][0]['aliases'][0]
+        OUTPUT.write(temp)
+        OUTPUT.write('\t')
+        temp = s.json()['@graph'][0]['uuid']
+        OUTPUT.write(temp)
+        OUTPUT.write('\n')
+        renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
+        t = requests.patch(
+            d['host'] + d['aliases'],
+            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
+            data=json.dumps(data),
+            headers=DCCheaders,
+        )
+        #print t.json()
+        item = json.loads(os.popen(renew_upload_credentials).read())['@graph'][0]
+        #item = t.json()['@graph'][0]
+        #POST file to S3
+        creds = item['upload_credentials']
+        env = os.environ.copy()
+        env.update({
+            'AWS_ACCESS_KEY_ID': creds['access_key'],
+            'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
+            'AWS_SECURITY_TOKEN': creds['session_token'],
+        })
+        print("Uploading file.")
+        start = time.time()
+        i = 0
+        err_after_4 = True
+        while (i < 4):
+            try:
+                subprocess.check_call(['aws', 's3', 'cp', d['path'], creds['upload_url']], env=env)
+                err_after_4 = False
+                i = 5
+            except subprocess.CalledProcessError as e:
+                # The aws command returns a non-zero exit code on error.
+                print("Upload failed with exit code %d" % e.returncode)
+                print "Retrying"
+                time.sleep(2)
+                i = i+1
+                continue
+        if err_after_4 is True:
+            print 'upload failed too many times'
+            sys.exit()
+        end = time.time()
+        duration = end - start
+        print("Uploaded in %.2f seconds" % duration)
     #print s.json()
+    else:
+        print 'temp failed'
+        sys.exit()
     return;
 
 main()
