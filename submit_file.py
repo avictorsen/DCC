@@ -186,6 +186,10 @@ def main():
                         read_length = int(work.cell_value(row, colindex))
                     if header == "run_type":
                         run_type = work.cell_value(row, colindex)
+                    if header == "paired_end":
+                        paired_end = str(int(work.cell_value(row, colindex)))
+                    if header == "paired_with":
+                        paired_with = work.cell_value(row, colindex)
                     if header == "output_type":
                         output_type = work.cell_value(row, colindex)
                     if header == "flowcell_details":
@@ -195,9 +199,9 @@ def main():
                         for i in cell:
                             pair = i.split(': ')
                             if pair[0] == 'machine':
-                                if pair[1] == '@HWI-D00422' or pair[1] == '@HWI-ST1083' or pair[1] == '@HWI-70014499L':
+                                if pair[1] == '@HWI-D00422' or pair[1] == '@HWI-ST1083' or pair[1] == '@HWI-70014499L' or pair[1] == '@HWI-700819F' or pair[1] == '@D3NW3HQ1':
                                     platform = 'HiSeq 2500'
-                                elif pair[1] == '@HWI-ST484' or pair[1] == '@HWI-ST673' or pair[1] == '@D13608P1' or pair[1] == '@DC4RYQN1' or pair[1] == '@HWI-7001449L':
+                                elif pair[1] == '@HWI-ST484' or pair[1] == '@HWI-ST673' or pair[1] == '@D13608P1' or pair[1] == '@DC4RYQN1' or pair[1] == '@HWI-7001449L' or pair[1] == '@HISEQ1' or pair[1] == '@LYNLEY' or pair[1] == '@BRISCOE' or pair[1] == '@MONK' or pair[1] == '@TENNISON' or pair[1] == '@HAVERS':
                                     platform = 'HiSeq 2000'
                                 elif pair[1] == '@MAGNUM' or pair[1] == '@ROCKFORD' or pair[1] == '@KOJAK' or pair[1] == '@COLUMBO' or pair[1] == '@SPADE':
                                     platform = 'Genome Analyzer IIx'
@@ -219,11 +223,14 @@ def main():
                     temp = os.path.splitext(path)
                     if (temp[1] == '.bam'):
                         if proggen == 'dm3':
+                            #file = [path]
                             file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
                             assembly = 'dm3'
                             path = file[0].rstrip()
                         elif proggen == 'dm6':
-                            file = os.popen("find /raid/modencode/dm/processed/dm6/2* -name " + path).readlines()
+                            os.system("sshpass -f '../mycloud.password' rsync -v --progress sshd@128.135.219.201:/nfs/modern/modencode/dmel/processed/dm6/2*/" + path + " ./temp/")
+                            #file = os.popen("find /media/mybooklive/modencode/dmel/processed/dm6/2* -name " + path).readlines()
+                            path = "./temp/" + path
                             assembly = 'dm6'
                             path = file[0].rstrip()
                         elif proggen == 'WS220':
@@ -239,16 +246,18 @@ def main():
                             print 'Error: no files found'
                             os.system("rmdir --ignore-fail-on-non-empty temp")
                             sys.exit()
-                        if len(file) > 2:
+                        if len(file) > 1:
                            print 'More than two bam files found: ',file
                            sys.exit()
                         path = file[0].rstrip()
                         format = 'bam'
                         if proggen == 'dm3' or proggen == 'dm6':
+                            print 'copying: ', path
                             os.system("cp " + path + " ./temp/")
                             path = "./temp/" + os.path.basename(path)
                             os.system("sh makeBamsdm3.sh ./temp/")
                         if proggen == 'WS245':
+                            print 'copying: ', path
                             os.system("cp " + path + " ./temp/")
                             path = "./temp/" + os.path.basename(path)
                             os.system("sh makeBamsce11.sh ./temp/")
@@ -257,7 +266,9 @@ def main():
                         temp = os.path.splitext(file)
                     if (temp[1] == ".txt" or temp[1] == '.fastq'):
                         os.system("scp avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                        #os.system("cp " + path + " ./temp/")
                         path = "./temp/" + os.path.basename(path)
+                        os.system("perl Phred64_to_Phred33.pl " + path)
                         format = 'fastq'
                     if (temp[1] == '.wig'):
                        os.system("cp " + path + " ./temp/")
@@ -373,8 +384,11 @@ def DCC(d, OUTPUT):
         data["flowcell_details"] = d['cell']
         data["platform"] = d['platform']
         #to remove paired_end
-        data["paired_end"] = '1'
-        data.pop('paired_end')
+        if (d['run_type'] == 'paired-ended'):
+            data['paired_end'] = d['paired_end']
+            if (data['paired_end'] == '2'):
+                data['paired_with'] = d['paired_with']
+        #data.pop('paired_end')
     if 'step' in d:
         data['step_run'] = d['step']
     
@@ -491,7 +505,6 @@ def DCC(d, OUTPUT):
     }
     if d['request_type'] == 'overwrite':
         data['status'] = 'uploading'
-
     r = requests.post(
         d['host'] + '/files',
         auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
@@ -504,6 +517,9 @@ def DCC(d, OUTPUT):
     except requests.exceptions.HTTPError:
         print "r:",r.json()
         print "post failed, trying patch"
+        del data['md5sum']
+        del data['file_size']
+        del data['submitted_file_name']
         s = requests.patch(#change to put to overwrite,patch to ammend
             d['host'] + '/' + d['aliases'],
             auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
