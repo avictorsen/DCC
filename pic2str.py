@@ -3,7 +3,7 @@ import base64
 import sys
 import hashlib
 import os
-import Image
+import image
 from email.MIMEBase import MIMEBase
 from email import Encoders
 

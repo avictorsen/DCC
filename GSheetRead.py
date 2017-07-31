@@ -5,7 +5,7 @@ import re
 import os
 import mimetypes
 import csv
-from oauth2client.client import SignedJwtAssertionCredentials
+from oauth2client.service_account import ServiceAccountCredentials
 from httplib2 import Http
 from apiclient import errors, http
 from apiclient.discovery import build
@@ -38,7 +38,9 @@ workbook = sys.argv[2]
 #login credentials
 with open(PW_file) as f:
     private_key = f.read()
-credentials = SignedJwtAssertionCredentials(client_email, private_key,'https://www.googleapis.com/auth/drive.readonly')
+#flow = client.flow_from_clientsecrets(private_key,'https://www.googleapis.com/auth/drive.readonly')
+scope = ['https://www.googleapis.com/auth/drive.readonly']
+credentials = ServiceAccountCredentials.from_json_keyfile_name(PW_file, scope)
 http_auth = credentials.authorize(Http())
 drivelogin = build('drive', 'v2', http=http_auth)
 
@@ -48,7 +50,7 @@ result = []
 page_token = None
 while True:
     try:
-        param = {'corpus': 'DOMAIN', 'q': "title contains '_'"}
+        param = {'corpora': 'domain', 'q': "title contains '_'"}
         files = drivelogin.files().list(**param).execute()
         result.extend(files['items'])
         page_token = files.get('nextPageToken')
@@ -107,7 +109,7 @@ except errors:
     print "couldn't get JSON schema"
     sys.exit()
 object_schema = response.json()
-
+print object_schema
 for row in range(1, work.nrows, 1):
     print
     print
