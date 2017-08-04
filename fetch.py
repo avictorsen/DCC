@@ -17,7 +17,7 @@ def main():
             print
             
     input = open('./fetch.txt')        
-    foreach pip in input:
+    for pip in input:
         try:
             response = requests.get(host+'pip',auth=(encoded_access_key, encoded_secret_access_key),headers={'content-type': 'application/json'})
             #print response
