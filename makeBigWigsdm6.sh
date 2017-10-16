@@ -20,8 +20,8 @@ for filename in $1/*.wig; do
     ./bedGraphToBigWig $filename.temp5 ./encValData/dm6/chrom.sizes ${filename%.wig}.bw
     # -clip option to issue warning messages rather than dying if wig file contains items off end of chromosome.
     # some wig files had chr3RHet extending more than listed in chrom.sizes
-    #./wigToBigWig -clip $filename ./encValData/dm6/chrom.sizes "${filename%%.wig}.bw"
-    #echo " $filename converted to BigWig"
+    ./wigToBigWig -clip $filename ./encValData/dm6/chrom.sizes "${filename%%.wig}.bw"
+    echo " $filename converted to BigWig"
     rm -f \*.temp\*
 done
 

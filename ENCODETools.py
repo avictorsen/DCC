@@ -11,7 +11,7 @@ import xlwt
 from base64 import b64encode
 import gdata
 import gdata.spreadsheet.service
-
+import collections
 
 # set headers. UNCLEAR IF THIS IS USED PROPERLY
 HEADERS = {'content-type': 'application/json'}
@@ -139,11 +139,9 @@ check json object for validity
     # SHOULD ONLY NEED OBJECT. NEED DEF TO EXTRACT VALUE (LIKE TYPE) FROM JSON OBJECT GRACEFULLY.
     # get the relevant schema
     #object_schema = GetENCODE(('/profiles/' + object_type + '.json'),keys)
-
     #Alec removed whole organism test 'cause it kept throwing errors
     if 'dependencies' in object_schema:
-        if 'biosample_type' in object_schema['dependencies']:
-            del object_schema['dependencies']['biosample_type']
+        del object_schema['dependencies']
     # test the new object. SHOULD HANDLE ERRORS GRACEFULLY
     try:
         jsonschema.validate(new_object,object_schema)
@@ -156,7 +154,7 @@ check json object for validity
     # did validate
     else:
         # inform the user of the success
-        #print('Validation of ' + object_id + ' succeeded.')
+        print('Validation of ' + object_id + ' succeeded.')
         return True
 
 def CleanJSON(new_object,object_schema,action):

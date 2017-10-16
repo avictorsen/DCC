@@ -17,7 +17,7 @@ for filename in $1/*.regionPeak.gz; do
     bedtools slop -i $filename.temp3 -g ./encValData/dm3/chrom.sizes -b 0 >> $filename.temp4
     bedtools sort -i $filename.temp4 > $filename.temp5
     ./bedToBigBed -type=bed6+4 $filename.temp5 ./encValData/dm3/chrom.sizes "${filename%%.gz}.bb"
-    gzip -c $filename.temp5 > $filename
+    cat $filename.temp5 | gzip -c > $filename
     rm $filename.temp*
     echo " $filename converted to BigBed"
 done

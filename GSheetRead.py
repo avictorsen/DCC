@@ -40,48 +40,59 @@ with open(PW_file) as f:
     private_key = f.read()
 #flow = client.flow_from_clientsecrets(private_key,'https://www.googleapis.com/auth/drive.readonly')
 scope = ['https://www.googleapis.com/auth/drive.readonly']
+#scope = ['https://www.googleapis.com/auth/drive.readonly']credentials = ServiceAccountCredentials.from_json_keyfile_name(PW_file, scope)
 credentials = ServiceAccountCredentials.from_json_keyfile_name(PW_file, scope)
 http_auth = credentials.authorize(Http())
-drivelogin = build('drive', 'v2', http=http_auth)
+drivelogin = build('drive', 'v3', http=http_auth)
 
-    
+
 #gets list of googleDOC files
 result = []
 page_token = None
 while True:
     try:
-        param = {'corpora': 'domain', 'q': "title contains '_'"}
-        files = drivelogin.files().list(**param).execute()
-        result.extend(files['items'])
-        page_token = files.get('nextPageToken')
+#        param = {'corpora': 'domain', 'q': "title contains '_'"}
+#        files = drivelogin.files().list(**param).execute()
+#        result.extend(files['items'])
+        files = drivelogin.files().list(fields="nextPageToken, files(*)").execute()
+        items = files.get('files', [])
+        if not items:
+            print "no files found"
+            sys.exit()
+#        page_token = files.get('nextPageToken')
         if not page_token:
            break
     except errors.HttpError, error:
         print 'An error occurred: %s' % error
         break
 #compare list of files to inputed spreadname
-for i in result:
-    if i['title'] == spreadname:
+for i in items:
+    if i['name'] == spreadname:
         spreadid = i['id']
-        selflink = i['selfLink']
+#        selflink = i['selfLink']
         #print spreadid
 try:
-    selflink
+    #selflink
+    spreadid
 except NameError:
-    print 'spreadsheet '+i['id']+':'+i['selflink']+' not found'
+    print 'spreadsheet not found'
     sys.exit()
 print "Opening spreadsheet: "+ spreadname
 file = 'temp_submit_file.xlsx'
 
 #get actual data
-download_url = drivelogin.files().get(fileId=spreadid).execute()['exportLinks']['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
-if download_url:
-    response = urllib.urlopen(download_url)
-    if response.getcode() == 200:
-        urllib.urlretrieve(download_url, file)
-    else:
-        print 'Could not download file' + response
-        sys.exit()
+#download_url = drivelogin.files().get(fileId=spreadid).execute()['exportLinks']['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+response = drivelogin.files().export(fileId=spreadid,mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').execute()
+if response:
+    with open(file, 'wb') as fh:
+        fh.write(response)
+#if download_url:
+#    response = urllib.urlopen(download_url)
+#    if response.getcode() == 200:
+#        urllib.urlretrieve(download_url, file)
+else:
+    print 'Could not download file' + response
+    sys.exit()
 #open workbook.
 try:
     book = xlrd.open_workbook(file)
@@ -109,7 +120,7 @@ except errors:
     print "couldn't get JSON schema"
     sys.exit()
 object_schema = response.json()
-print object_schema
+#print object_schema
 for row in range(1, work.nrows, 1):
     print
     print
@@ -141,6 +152,8 @@ for row in range(1, work.nrows, 1):
                     new_object.update({header:unicode(value)})
                 elif object_schema[u'properties'][header][u'type'] == 'integer':
                     new_object.update({header:int(value)})
+                elif object_schema[u'properties'][header][u'type'] == 'number':
+                    new_object.update({header:float(value)})
                 elif object_schema[u'properties'][header][u'type'] == 'float':
                     new_object.update({header:float(value)})
                 elif object_schema[u'properties'][header][u'type'] == 'array':

@@ -238,14 +238,17 @@ def main():
                             assembly = 'dm6'
                             path = file[1].rstrip()
                         elif proggen == 'WS220':
-                            os.system("rsync -vPc avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/" + path + " ./temp/")
+                            os.system("rsync -vPc avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/old_data/" + path + " ./temp/")
                             #file = os.popen("find /raid/modencode/ce/processed/WS220/2* -name " + path).readlines()
                             assembly = 'ce10'
                             file = path.split('/')
                             path = file[-1].rstrip()
                         elif proggen == 'WS245':
-                            file = os.popen("find /media/mybooklive/modencode/ce/processed/WS235/2* -name " + path).readlines()
+                            os.system("rsync -vPc avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/old_data/" + path + " ./temp/")
+                            #file = os.popen("find /media/mybooklive/modencode/ce/processed/WS235/2* -name " + path).readlines()
                             assembly = 'ce11'
+                            file = path.split('/')
+                            path = file[-1].rstrip()
                         else:
                             print 'Genome not recognized'
                             sys.exit()
@@ -270,8 +273,8 @@ def main():
                         if proggen == 'WS220':
                             path = "./temp/" + path
                         if proggen == 'WS245':
-                            print 'copying: ', path
-                            os.system("cp " + path + " ./temp/")
+                            #print 'copying: ', path
+                            #os.system("cp " + path + " ./temp/")
                             path = "./temp/" + os.path.basename(path)
                             os.system("sh makeBamsce11.sh ./temp/")
                     if (temp[1] == '.gz'):
@@ -307,8 +310,8 @@ def main():
                        format = 'bigWig'
 
                     if (temp[1] == '.regionPeak'):
-                       #os.system("cp " + path + " ./temp/")
-                       os.system("rsync -vPc avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                       os.system("cp " + path + " ./temp/")
+                       #os.system("rsync -vPc avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                        if (proggen == 'dm3'):
                            os.system("sh makeBigBedsdm3.sh ./temp/")
                            assembly = 'dm3'
@@ -329,21 +332,6 @@ def main():
                        print "new path_to_file:" + path
                        format = 'bed'
 
-                    if (temp[1] == '.rmblacklist'):
-                       os.system("cp " + path + " ./temp/" + os.path.basename(path) + ".bed")
-                       if (proggen == 'dm3'):
-                           os.system("sh makeBigBedsdm3.sh ./temp/")
-
-                           assembly = 'dm3'
-                       elif (proggen == 'WS220'):
-                           os.system("sh makeBigBedsce10.sh ./temp/")
-                           assembly = 'ce10'
-                       else:
-                           print("can't find assembly:" + proggen)
-                           sys.exit()
-                       path = path + '.bb'
-                       format = 'narrowPeak'
-
         if rep == '' and output_type != 'reads':
             step = DCC_pooled_pipeline[output_type]
         elif output_type != 'reads':
@@ -352,21 +340,21 @@ def main():
         print '\n'+aliases
         DCC(locals(),OUTPUT)
         #if file format is bed, rerun with original bed file
-        if (format == 'bed'):
-            print "\n\nRepeating submission with bigBed file"
-            derived_from = [aliases]
-            if rep == '':
-                if output_type == "optimal idr threasholded peaks":
-                    step = DCC_pooled_pipeline['optimal idr bigBed']
-                else:
-                    step = DCC_pooled_pipeline['bigBed']
-            else:
-                step = DCC_rep_pipeline['bigBed']
-            aliases = aliases.replace('-bed','-bigBed')
-            format = 'bigBed'
-            path = path.replace('.gz','.bb')
-            print "aliases: "+aliases
-            DCC(locals(),OUTPUT)
+#        if (format == 'bed'):
+#            print "\n\nRepeating submission with bigBed file"
+#            derived_from = [aliases]
+#            if rep == '':
+#                if output_type == "optimal idr threasholded peaks":
+#                    step = DCC_pooled_pipeline['optimal idr bigBed']
+#                else:
+#                    step = DCC_pooled_pipeline['bigBed']
+#            else:
+#                step = DCC_rep_pipeline['bigBed']
+#            aliases = aliases.replace('-bed','-bigBed')
+#            format = 'bigBed'
+#            path = path.replace('.gz','.bb')
+#            print "aliases: "+aliases
+#            DCC(locals(),OUTPUT)
 
 
         ####Clean up
@@ -652,8 +640,6 @@ def DCC(d, OUTPUT):
         #print t.json()
         renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
         print os.popen(renew_upload_credentials).read()
-        print "hi"
-        sys.exit()
         item = json.loads(os.popen(renew_upload_credentials).read())['@graph'][0]
         #item = t.json()['@graph'][0]
         #POST file to S3

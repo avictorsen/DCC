@@ -213,11 +213,11 @@ def main():
                     temp = os.path.splitext(path)
                     if (temp[1] == '.bam'):
                         if proggen == 'dm3':
-                            file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
+                            file = os.popen("find /data/dm/processed/dm3/2* -name " + path).readlines()
                             assembly = 'dm3'
                             path = file[0].rstrip()
                         elif proggen == 'WS220':
-                            file = os.popen("find /raid/modencode/ce/processed/WS220/2* -name " + path).readlines()
+                            file = os.popen("find /data/ce/processed/WS220/2* -name " + path).readlines()
                             assembly = 'ce10'
                         else:
                             print 'Genome not recognized'

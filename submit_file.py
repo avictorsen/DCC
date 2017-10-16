@@ -13,7 +13,7 @@ import xlrd
 import urllib
 from httplib2 import Http
 from apiclient import errors, http
-from oauth2client.client import SignedJwtAssertionCredentials
+from oauth2client.service_account import ServiceAccountCredentials
 from apiclient.discovery import build
 import csv
 
@@ -40,7 +40,10 @@ def main():
     #host = 'https://v33b1.demo.encodedcc.org/'
     #Static variables
     my_lab = 'kevin-white'
+    #modERN
     my_award = 'U41HG007355'
+    #modENCODE
+    #my_award = 'U01HG004264'
     request_type = sys.argv[1]
     proggen = sys.argv[2]
     spreadname = sys.argv[3]
@@ -68,53 +71,50 @@ def main():
     #login credentials
     with open(PW_file) as f:
         private_key = f.read()
-    credentials = SignedJwtAssertionCredentials(client_email, private_key,'https://www.googleapis.com/auth/drive.readonly')
+    scope = ['https://www.googleapis.com/auth/drive.readonly']
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(PW_file, scope)
+    #credentials = SignedJwtAssertionCredentials(client_email, private_key,'https://www.googleapis.com/auth/drive.readonly')
     http_auth = credentials.authorize(Http())
-    drivelogin = build('drive', 'v2', http=http_auth)
+    drivelogin = build('drive', 'v3', http=http_auth)
     #gets list of googleDOC files
     result = []
     page_token = None
     while True:
         try:
             #corpus:DOMAIN not working as param
-            param = {'spaces': 'drive', 'q': "title contains '_'"}
-            files = drivelogin.files().list(**param).execute()
-            items = files.get('items', [])
+            files = drivelogin.files().list(fields="nextPageToken, files(*)").execute()
+#            files = drivelogin.files().list(**param).execute()
+            items = files.get('files', [])
             if not items:
                 print "no files found"
                 sys.exit()
-            result.extend(files['items'])
-            page_token = files.get('nextPageToken')
-            #break loop 
+            #break loop
             if not page_token:
                 break
         except errors.HttpError, error:
             print 'An error occurred: %s' % error
             break
     #compare list of files to inputed spreadname
-    for i in result:
-        if i['title'] == spreadname:
+    for i in items:
+        if i['name'] == spreadname:
             spreadid = i['id']
-            selflink = i['selfLink']
-            #print spreadid
+    print "Opening spreadsheet: "+ spreadname
     try:
-        selflink
+        spreadid
     except NameError:
         print 'spreadsheet not found'
         sys.exit()
-    print "Opening spreadsheet: "+ spreadname
 
     file = 'temp_submit_file.xlsx'
 
     #get actual data
-    download_url = drivelogin.files().get(fileId=spreadid).execute()['exportLinks']['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
-    if download_url:
-        response = urllib.urlopen(download_url)
-        if response.getcode() == 200:
-            urllib.urlretrieve(download_url, file)
-        else:
-            print 'Could not download file' + response
-            sys.exit()
+    response = drivelogin.files().export(fileId=spreadid,mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').execute()
+    if response:
+        with open(file, 'wb') as fh:
+            fh.write(response)
+    else:
+        print 'Could not download file' + response
+        sys.exit()
     #open workbook.
     try:
         book = xlrd.open_workbook(file)
@@ -172,6 +172,8 @@ def main():
                         exp = work.cell_value(row, colindex)
                     if header == "aliases":
                         aliases = work.cell_value(row, colindex)
+                    if header == "supersedes":
+                        replaces = work.cell_value(row, colindex).split(', ')
                     if header == "replicate":
                         rep = work.cell_value(row,colindex)
                     if header == "derived_from":
@@ -205,6 +207,8 @@ def main():
                                     platform = 'HiSeq 2000'
                                 elif pair[1] == '@MAGNUM' or pair[1] == '@ROCKFORD' or pair[1] == '@KOJAK' or pair[1] == '@COLUMBO' or pair[1] == '@SPADE':
                                     platform = 'Genome Analyzer IIx'
+                                elif pair[1] == '@K00242':
+                                    platform = 'HiSeq 4000'
                                 else:
                                     print "cannot find platform for " + pair[1]
                                     sys.exit()
@@ -221,118 +225,163 @@ def main():
                     print header+':', path
                     file = path
                     temp = os.path.splitext(path)
-                    if (temp[1] == '.bam'):
-                        if proggen == 'dm3':
-                            #file = [path]
-                            file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
-                            assembly = 'dm3'
-                            path = file[0].rstrip()
-                        elif proggen == 'dm6':
-                            os.system("sshpass -f '../mycloud.password' rsync -v --progress sshd@128.135.219.201:/nfs/modern/modencode/dmel/processed/dm6/2*/" + path + " ./temp/")
-                            #file = os.popen("find /media/mybooklive/modencode/dmel/processed/dm6/2* -name " + path).readlines()
-                            path = "./temp/" + path
-                            assembly = 'dm6'
-                            path = file[0].rstrip()
-                        elif proggen == 'WS220':
-                            file = os.popen("find /raid/modencode/ce/processed/WS220/2* -name " + path).readlines()
-                            assembly = 'ce10'
-                        elif proggen == 'WS245':
-                            file = os.popen("find /media/mybooklive/modencode/ce/processed/WS235/2* -name " + path).readlines()
-                            assembly = 'ce11'
-                        else:
-                            print 'Genome not recognized'
-                            sys.exit()
-                        if len(file) < 1:
-                            print 'Error: no files found'
-                            os.system("rmdir --ignore-fail-on-non-empty temp")
-                            sys.exit()
-                        if len(file) > 1:
-                           print 'More than two bam files found: ',file
-                           sys.exit()
-                        path = file[0].rstrip()
-                        format = 'bam'
-                        if proggen == 'dm3' or proggen == 'dm6':
-                            print 'copying: ', path
-                            os.system("cp " + path + " ./temp/")
-                            path = "./temp/" + os.path.basename(path)
-                            os.system("sh makeBamsdm3.sh ./temp/")
-                        if proggen == 'WS245':
-                            print 'copying: ', path
-                            os.system("cp " + path + " ./temp/")
-                            path = "./temp/" + os.path.basename(path)
-                            os.system("sh makeBamsce11.sh ./temp/")
                     if (temp[1] == '.gz'):
                         file = file.replace('.gz', '')
                         temp = os.path.splitext(file)
-                    if (temp[1] == ".txt" or temp[1] == '.fastq'):
-                        os.system("scp avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
-                        #os.system("cp " + path + " ./temp/")
-                        path = "./temp/" + os.path.basename(path)
-                        os.system("perl Phred64_to_Phred33.pl " + path)
+                    if (temp[1] == '.bam'):
+                        format = 'bam'
+                        if request_type != "patch":
+                            if proggen == 'dm3':
+                                #file = [path]
+                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm3/2*/" + path).readlines()
+                                if "1 file to consider\n" in search:
+                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm3/2*/" + path + " ./temp")
+                                else:
+                                    print "wrong number of files found"
+                                    print search
+                                    sys.exit()
+                                file = os.popen("find ./temp/* -name " + path).readlines()
+                                #file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
+                                assembly = 'dm3'
+                                path = file[0].rstrip()
+                                path = "./temp/" + os.path.basename(path)
+                                os.system("sh makeBamsdm3.sh ./temp/")
+                            elif proggen == 'dm6':
+                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm6/2*/" + path).readlines()
+                                if "1 file to consider\n" in search:
+                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm6/2*/" + path + " ./temp")
+                                else:
+                                    print "wrong number of files found"
+                                    print search
+                                    sys.exit()
+                                file = os.popen("find ./temp/* -name " + path).readlines()
+                                #os.system("sshpass -f '../mycloud.password' rsync -v --progress sshd@128.135.219.201:/nfs/modern/modencode/dmel/processed/dm6/2*/" + path + " ./temp/")
+                                #file = os.popen("find /media/mybooklive/modencode/dmel/processed/dm6/2* -name " + path).readlines()
+                                path = "./temp/" + path
+                                assembly = 'dm6'
+                                path = file[0].rstrip()
+                                path = "./temp/" + os.path.basename(path)
+                                #os.system("sh makeBamsdm6.sh ./temp/")
+                            elif proggen == 'WS220':
+                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/2*/" + path).readlines()
+                                if "1 file to consider\n" in search:
+                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/2*/" + path + " ./temp")
+                                else:
+                                    print "wrong number of files found"
+                                    print search
+                                    sys.exit()
+                                file = os.popen("find ./temp/* -name " + os.path.basename(path)).readlines()
+                                path = "./temp/" + path
+                                #file = os.popen("find /data/ce/processed/WS220/2*/ -name " + path).readlines()
+                                assembly = 'ce10'
+                            elif proggen == 'WS245':
+                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/2*/" + path).readlines()
+                                if "1 file to consider\n" in search:
+                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/2*/" + path + " ./temp")
+                                else:
+                                    print "wrong number of files found"
+                                    print search
+                                    sys.exit()
+                                file = os.popen("find ./temp/* -name " + os.path.basename(path)).readlines()
+                                path = "./temp/" + path
+                                #file = os.popen("find /data/ce/processed/WS235/2*/ -name " + path).readlines()
+                                assembly = 'ce11'
+                            else:
+                                print 'Genome not recognized'
+                                sys.exit()
+                            if len(file) < 1:
+                                print 'Error: no files found'
+                                os.system("rmdir --ignore-fail-on-non-empty temp")
+                                sys.exit()
+                            if len(file) > 1:
+                                print 'More than two bam files found: ',file
+                                sys.exit()
+                            path = file[0].rstrip()
+                            #if proggen == 'dm3' or proggen == 'dm6':
+                                #print 'copying: ', path
+                                #os.system("cp " + path + " ./temp/")
+                                #path = "./temp/" + os.path.basename(path)
+                                #os.system("sh makeBamsdm3.sh ./temp/")
+                            if proggen == 'WS245':
+                                #print 'copying: ', path
+                                #os.system("cp " + path + " ./temp/")
+                                path = "./temp/" + os.path.basename(path)
+                                os.system("sh makeBamsce11.sh ./temp/")
+                    elif (temp[1] == ".txt" or temp[1] == '.fastq'):
                         format = 'fastq'
-                    if (temp[1] == '.wig'):
-                       os.system("cp " + path + " ./temp/")
-                       if (proggen == 'dm3'):
-                           os.system("sh makeBigWigsdm3.sh ./temp/")
-                           assembly = 'dm3'
-                       elif (proggen == 'WS220'):
-                           os.system("sh makeBigWigsce10.sh ./temp/")
-                           assembly = 'ce10'
-                       elif (proggen == 'WS245'):
-                           os.system("sh makeBigWigsce11.sh ./temp/")
-                           assembly = 'ce11'
-                       else:
-                           print("can't find assembly:" + assembly)
-                           sys.exit()
-                       path = "./temp/" + os.path.basename(path)
-                       path = path.replace('.wig', '.bw')
-                       print "File Converted to " + path
+                        if request_type != "patch":
+                            os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                            #os.system("cp " + path + " ./temp/")
+                            path = "./temp/" + os.path.basename(path)
+                            os.system("perl Phred64_to_Phred33.pl " + path)
+                    elif (temp[1] == '.wig'):
                        format = 'bigWig'
-
-                    if (temp[1] == '.regionPeak'):
-                       os.system("cp " + path + " ./temp/")
-                       if (proggen == 'dm3'):
-                           os.system("sh makeBigBedsdm3.sh ./temp/")
-                           assembly = 'dm3'
-                       elif (proggen == 'WS220'):
-                           os.system("sh makeBigBedsce10.sh ./temp/")
-                           assembly = 'ce10'
-                       elif (proggen == 'WS245'):
-                           #os.system("sh makeBedsce11.sh ./temp/")
-                           os.system("sh makeBigBedsce11.sh ./temp/")
-                           assembly = 'ce11'
-                       else:
-                           print("can't find assembly:" + assembly)
-                           sys.exit()
-                       path = "./temp/" + os.path.basename(path)
-                       print "new path_to_file:" + path
+                       if request_type != "patch":
+                           #os.system("cp " + path + " ./temp/")
+                           if (proggen == 'dm3'):
+                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               os.system("sh makeBigWigsdm3.sh ./temp/")
+                               assembly = 'dm3'
+                           elif (proggen == 'dm6'):
+                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               os.system("sh makeBigWigsdm6.sh ./temp/")
+                               assembly = 'dm6'
+                           elif (proggen == 'WS220'):
+                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               os.system("sh makeBigWigsce10.sh ./temp/")
+                               assembly = 'ce10'
+                           elif (proggen == 'WS245'):
+                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               os.system("sh makeBigWigsce11.sh ./temp/")
+                               assembly = 'ce11'
+                           else:
+                               print("can't find assembly:" + assembly)
+                               sys.exit()
+                           path = "./temp/" + os.path.basename(path)
+                           path = path.replace('.wig', '.bw')
+                           print "File Converted to " + path
+                    elif (temp[1] == '.regionPeak'):
                        format = 'bed'
-
-                    if (temp[1] == '.rmblacklist'):
-                       os.system("cp " + path + " ./temp/" + os.path.basename(path) + ".bed")
-                       if (proggen == 'dm3'):
-                           os.system("sh makeBigBedsdm3.sh ./temp/")
-                           assembly = 'dm3'
-                       elif (proggen == 'WS220'):
-                           os.system("sh makeBigBedsce10.sh ./temp/")
-                           assembly = 'ce10'
-                       else:
-                           print("can't find assembly:" + proggen)
-                           sys.exit()
-                       path = path + '.bb'
-                       format = 'narrowPeak'
-
-        if rep == '' and output_type != 'reads':
-            step = DCC_pooled_pipeline[output_type]
+                       if request_type != "patch":
+                           os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                           #os.system("cp  --no-preserve='all' " + path + " ./temp/")
+                           if (proggen == 'dm3'):
+                               os.system("sh makeBigBedsdm3.sh ./temp/")
+                               assembly = 'dm3'
+                           elif (proggen == 'dm6'):
+                               os.system("sh makeBigBedsdm6.sh ./temp/")
+                               assembly = 'dm6'
+                           elif (proggen == 'WS220'):
+                               os.system("sh makeBigBedsce10.sh ./temp/")
+                               assembly = 'ce10'
+                           elif (proggen == 'WS245'):
+                               #os.system("sh makeBedsce11.sh ./temp/")
+                               os.system("sh makeBigBedsce11.sh ./temp/")
+                               assembly = 'ce11'
+                           else:
+                               print("can't find assembly:" + assembly)
+                               sys.exit()
+                           path = "./temp/" + os.path.basename(path)
+                           print "new path_to_file:" + path
+                    else:
+                       print "Path not recognized"
+                       sys.exit()
+        if 'rep' in vars():
+            if rep == '' and output_type != 'reads':
+                step = DCC_pooled_pipeline[output_type]
+            elif output_type != 'reads':
+                step = DCC_rep_pipeline[output_type]
         elif output_type != 'reads':
-            step = DCC_rep_pipeline[output_type]                     
+            step = DCC_rep_pipeline[output_type]
+
         #compile and send to DCC
-        print '\n'+aliases
         DCC(locals(),OUTPUT)
         #if file format is bed, rerun with original bed file
         if (format == 'bed'):
-            print "\n\nRepeating submission with bigBed file"
+            print "\n\nRepeating submission with bigBed file\n"
             derived_from = [aliases]
+            aliases = aliases.replace('-bed','-bigBed')
+            print "aliases: "+aliases
             if rep == '':
                 if output_type == "optimal idr threasholded peaks":
                     step = DCC_pooled_pipeline['optimal idr bigBed']
@@ -340,10 +389,14 @@ def main():
                     step = DCC_pooled_pipeline['bigBed']
             else:
                 step = DCC_rep_pipeline['bigBed']
-            aliases = aliases.replace('-bed','-bigBed')
+            if 'replaces' in vars():
+                print "supersedes: ",
+                for i, old in enumerate(replaces):
+                    new = old.replace('-bed','-bigBed')
+                    print new+", "
+                    replaces[i] = new
             format = 'bigBed'
             path = path.replace('.gz','.bb')
-            print "aliases: "+aliases
             DCC(locals(),OUTPUT)
 
 
@@ -357,14 +410,16 @@ def DCC(d, OUTPUT):
     data = {
         "aliases": [d['aliases']],
         "dataset": d['exp'],
-        "file_format": d['format'],
         "lab": d['my_lab'],
         "award": d['my_award'],
-    }
+        "file_format": d['format']
+	}
     ## add specific data to data array
     if ('derived_from' in d['headers']):
         if d['derived_from'] != None:
             data['derived_from'] = d['derived_from']
+    if 'replaces' in d:
+        data['supersedes'] = d['replaces']
     if 'type' in d:
         data['file_format_type'] = d['type']
     if 'read_length' in d:
@@ -378,8 +433,9 @@ def DCC(d, OUTPUT):
     if d['output_type'] != None:
         data["output_type"] = d['output_type']
     if 'rep' in d:
-        if d['rep'] != None and d['rep'] != '':
-            data['replicate'] = d['rep']
+        if 'output_type' in d:
+            if d['output_type'] == 'reads':
+                data['replicate'] = d['rep']
     if (d['format'] is 'fastq'):
         data["flowcell_details"] = d['cell']
         data["platform"] = d['platform']
@@ -391,7 +447,7 @@ def DCC(d, OUTPUT):
         #data.pop('paired_end')
     if 'step' in d:
         data['step_run'] = d['step']
-    
+
     #print data
     #sys.exit()
     ####################
@@ -428,71 +484,71 @@ def DCC(d, OUTPUT):
         'bedRnaElements': ['-type=bed6+3', chromInfo, '-as=%s/as/bedRnaElements.as' % encValData],
         'CEL': None,
     }
-    if re.search('regionPeak.gz$',d['path']) != None:
-        validate_args = validate_map.get(data['file_format']+"_narrowPeak")
-    else:
-        validate_args = validate_map.get(data['file_format'])
-    if validate_args is not None:
-        print"Validating file as " + str(validate_args)
-        try:
-           subprocess.check_output(['./validateFiles'] + validate_args + [d['path']])
-        except subprocess.CalledProcessError as e:
-            print(e.output)
-            raise
-    gzip_types = [
-        "CEL",
-        "bam",
-        "bed",
-        "bed3",
-        "bed6",
-        "bed_bed3",
-        "bed_bed6",
-        "bed_bedLogR",
-        "bed_bedMethyl",
-        "bed_bedRnaElements",
-        "bed_broadPeak",
-        "bed_narrowPeak",
-        "bed_peptideMapping",
-        "csfasta",
-        "csqual",
-        "fasta",
-        "fastq",
-        "gff",
-        "gtf",
-        "tar",
-    ]
+    if d['request_type'] != "patch":
+        if re.search('regionPeak.gz$',d['path']) != None:
+            validate_args = validate_map.get(data['file_format']+"_narrowPeak")
+        else:
+            validate_args = validate_map.get(data['file_format'])
+        if validate_args is not None:
+            print"Validating file as " + str(validate_args)
+            try:
+               subprocess.check_output(['./validateFiles'] + validate_args + [d['path']])
+            except subprocess.CalledProcessError as e:
+                print(e.output)
+                raise
+        gzip_types = [
+            "CEL",
+            "bam",
+            "bed",
+            "bed3",
+            "bed6",
+            "bed_bed3",
+            "bed_bed6",
+            "bed_bedLogR",
+            "bed_bedMethyl",
+            "bed_bedRnaElements",
+            "bed_broadPeak",
+            "bed_narrowPeak",
+            "bed_peptideMapping",
+            "csfasta",
+            "csqual",
+            "fasta",
+            "fastq",
+            "gff",
+            "gtf",
+            "tar",
+        ]
 
-    magic_number = open(d['path'], 'rb').read(2)
-    is_gzipped = magic_number == b'\x1f\x8b'
+        magic_number = open(d['path'], 'rb').read(2)
+        is_gzipped = magic_number == b'\x1f\x8b'
 
-    print "format:" + d['format']
+        print "format:" + d['format']
+        #print "gzipped?" + is_gzipped
 
-    #print "gzipped?" + is_gzipped
+        if re.search('bed$', data['file_format']) != None:
+            test = data['file_format']+"_"+data['file_format_type']
+        else:
+            test = data['file_format']
+        if test in gzip_types:
+            if is_gzipped is False:
+                gzip = subprocess.Popen(['gzip','-f',d['path']],)
+                gzip.wait()
+                d['path'] = d['path'] + '.gz'
+                if gzip.stderr != None:
+                    assert is_gzipped, 'Expected gzipped file'
+        else:
+            #could add step to unzip if needed
+            assert not is_gzipped, 'Expected un-gzipped file'
 
-    if re.search('bed$', data['file_format']) != None:
-        test = data['file_format']+"_"+data['file_format_type']
-    else:
-        test = data['file_format']
-    if test in gzip_types:
-        if is_gzipped is False:
-            gzip = subprocess.Popen(['gzip','-f',d['path']],)
-            gzip.wait()
-            d['path'] = d['path'] + '.gz'
-            if gzip.stderr != None:
-                assert is_gzipped, 'Expected gzipped file'
-    else:
-        #could add step to unzip if needed
-        assert not is_gzipped, 'Expected un-gzipped file'
-
-    #calculate md5
-    md5sum = hashlib.md5()
-    with open(d['path'], 'rb') as f:
-        for chunk in iter(lambda: f.read(1024*1024), ''):
-            md5sum.update(chunk)
-    print "md5sum: ", md5sum.hexdigest()
-    data['md5sum'] = md5sum.hexdigest()
-    data['file_size'] = os.path.getsize(d['path'])
-    data['submitted_file_name'] = d['path']
+        #calculate md5
+        md5sum = hashlib.md5()
+        with open(d['path'], 'rb') as f:
+            for chunk in iter(lambda: f.read(1024*1024), ''):
+                md5sum.update(chunk)
+        print "md5sum: ", md5sum.hexdigest()
+        data['md5sum'] = md5sum.hexdigest()
+        data['file_size'] = os.path.getsize(d['path'])
+        data['submitted_file_name'] = d['path']
     print "submitted_file_name: " + d['path']
     print "file_format: " + data['file_format']
     if 'file_format_type' in data:
@@ -503,23 +559,26 @@ def DCC(d, OUTPUT):
         'Content-type': 'application/json',
         'Accept': 'application/json',
     }
-    if d['request_type'] == 'overwrite':
-        data['status'] = 'uploading'
     r = requests.post(
         d['host'] + '/files',
         auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
         data=json.dumps(data),
         headers=DCCheaders,
     )
-    print "posting metadata!"
-    try:
-        r.raise_for_status()
-    except requests.exceptions.HTTPError:
-        print "r:",r.json()
-        print "post failed, trying patch"
-        del data['md5sum']
-        del data['file_size']
-        del data['submitted_file_name']
+    if d['request_type'] != 'patch':
+        print "\nposting metadata:",
+        try:
+            r.raise_for_status()
+        except requests.exceptions.HTTPError:
+            #print "r:",r.json()
+            print " Failed! Trying patch"
+#    if d['request_type'] == 'patch':
+#        print "removing md5sum, file_size, and submitted_file_name for update"
+#        del data['md5sum']
+#        del data['file_size']
+#        del data['submitted_file_name']
+    if d['request_type'] == 'patch' or 'status' in r.json():
+        print "patching metadata:",
         s = requests.patch(#change to put to overwrite,patch to ammend
             d['host'] + '/' + d['aliases'],
             auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
@@ -529,26 +588,27 @@ def DCC(d, OUTPUT):
         try:
             s.raise_for_status()
         except requests.exceptions.HTTPError:
+            print ' Failed!'
             print '\ndata: ', data
-            print 
-            print 'r: ', r.json()
-            print 
-            print('patch failed: %s %s' % (s.status_code, s.reason))
-            print 
-            print 's: ', s.json()
+            print
+            if 'r' in vars():
+                print('Post attempt: %s %s' % (r.status_code, r.reason))
+                print r.json()
+                print
+            print('Patch attempt: %s %s' % (s.status_code, s.reason))
+            print s.json()
             sys.exit()
+    print " Success!"
     if r.json()[u'status'] == 'success':
-        print 'uuid: ',r.json()['@graph'][0]['uuid']
+        print '  uuid: ',r.json()['@graph'][0]['uuid']
         temp = r.json()['@graph'][0]['uuid']
     elif s.json()[u'status'] == 'success':
-        print 'uuid: ',s.json()['@graph'][0]['uuid']
+        print '  uuid: ',s.json()['@graph'][0]['uuid']
         temp = s.json()['@graph'][0]['uuid']
 
     ##### upload files
-    if temp != "" and d['request_type'] == 'patch':
-        print "metadata patched!"
     ############### post ###############
-    elif temp != "" and d['request_type'] == 'post':
+    if temp != "" and d['request_type'] == 'post':
         OUTPUT.write(d['aliases'])
         OUTPUT.write('\t')
         OUTPUT.write(temp)
@@ -565,7 +625,7 @@ def DCC(d, OUTPUT):
             print "t: ",t.json()
             print "he's dead jim"
             sys.exit();
-        #print r.json()
+        #print t.json()
         item = t.json()['@graph'][0]
         #print "r:", r.json()
         #POST file to S3
@@ -576,9 +636,9 @@ def DCC(d, OUTPUT):
             'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
             'AWS_SECURITY_TOKEN': creds['session_token'],
         })
-        print("Uploading file.")
+        print "\nUploading: ",
         start = time.time()
-        
+
         #this might break due to e.returncode not being defined.
         i = 0
         err_after_4 = True
@@ -589,22 +649,22 @@ def DCC(d, OUTPUT):
                 i = 5
             except subprocess.CalledProcessError as e:
                 # The aws command returns a non-zero exit code on error.
-                print("Upload failed with exit code %d" % e.returncode)
-                print "Retrying"
+                #print("Upload failed with exit code %d" % e.returncode)
+                #print "Retrying"
                 time.sleep(2)
                 i = i+1
                 continue
         if err_after_4 is True:
-            print 'upload failed too many times'
+            print 'Failed! %d' % e.returncode
             sys.exit()
         end = time.time()
         duration = end - start
-        print("Uploaded in %.2f seconds" % duration)
+        print" Uploaded in %.2f seconds" % duration
     ############# overwrite ################
     elif temp != "" and d['request_type'] == 'overwrite':
         ID = s.json()['@graph'][0]['accession']
         print "ID: " + ID
-        print("Uploading file.")
+        print("Fetching credentials.")
         temp = s.json()['@graph'][0]['aliases'][0]
         OUTPUT.write(temp)
         OUTPUT.write('\t')
@@ -612,15 +672,22 @@ def DCC(d, OUTPUT):
         OUTPUT.write(temp)
         OUTPUT.write('\n')
         renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
-        t = requests.patch(
-            d['host'] + d['aliases'],
-            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
-            data=json.dumps(data),
-            headers=DCCheaders,
-        )
-        #print t.json()
+#        t = requests.patch(
+#            d['host'] + d['aliases'],
+#            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
+#            data=json.dumps(data),
+#            headers=DCCheaders,
+#        )
+#        try:
+#            t.raise_for_status()
+#        except:
+#            print "t: ",t.json()
+#            print "he's dead jim"
+#            sys.exit();
+#        print t.json()
+#        print "new cred: "
+#        print json.loads(os.popen(renew_upload_credentials).read())
         item = json.loads(os.popen(renew_upload_credentials).read())['@graph'][0]
-        #item = t.json()['@graph'][0]
         #POST file to S3
         creds = item['upload_credentials']
         env = os.environ.copy()
@@ -629,7 +696,7 @@ def DCC(d, OUTPUT):
             'AWS_SECRET_ACCESS_KEY': creds['secret_key'],
             'AWS_SECURITY_TOKEN': creds['session_token'],
         })
-        print("Uploading file.")
+        print "Uploading: "
         start = time.time()
         i = 0
         err_after_4 = True
@@ -640,21 +707,22 @@ def DCC(d, OUTPUT):
                 i = 5
             except subprocess.CalledProcessError as e:
                 # The aws command returns a non-zero exit code on error.
-                print("Upload failed with exit code %d" % e.returncode)
-                print "Retrying"
+                #print("Upload failed with exit code %d" % e.returncode)
+                #print "Retrying"
                 time.sleep(2)
                 i = i+1
                 continue
         if err_after_4 is True:
-            print 'upload failed too many times'
+            print 'Failed! %d' % e.returncode
             sys.exit()
         end = time.time()
         duration = end - start
         print("Uploaded in %.2f seconds" % duration)
     #print s.json()
     else:
-        print 'temp failed'
-        sys.exit()
+        return;
+	#print 'temp failed'
+        #sys.exit()
     return;
 
 main()

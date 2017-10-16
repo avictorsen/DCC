@@ -16,6 +16,7 @@ from ENCODETools import WriteJSON
 import sys
 import csv
 import pickle
+import collections
 
 if __name__ == "__main__":
     '''
@@ -50,15 +51,16 @@ Authentication is determined from the keys.txt file.
 
 #################################
 #list of uploaded objects
-################################# 
+#################################
     posted_objects = []
     error_objects = []
     patched_objects = []
-    for new_object in object_list:        
+    for new_object in object_list:
+        #print new_object
         # define object parameters. NEEDS TO RUN A CHECK TO CONFIRM THESE EXIST FIRST.
         object_type = str(new_object[u'@type'][0])
         # if the accession does not exist, make it blank
-	if 'biosample_characterization' in new_object[u'@type'] :
+	if 'biosample_characterization' in new_object[u'@type']:
 	    del new_object[u'@type']
         object_id = ''
         if new_object.has_key(u'accession'):
@@ -75,6 +77,13 @@ Authentication is determined from the keys.txt file.
             object_id = str(object_uuid)
         else:
             object_uuid = ''
+#        if new_object.has_key(u'organism'):
+#            ordered_object = collections.OrderedDict({'organism': new_object[u'organism']})
+#            ordered_object.update(new_object)
+#            new_object = ordered_object
+#            print new_object
+            #sys.exit()
+
         #print('Getting Schema.')
         object_schema = GetENCODE(('/profiles/' + object_type + '.json'),keys)
         # check to see if object already exists
@@ -98,12 +107,13 @@ Authentication is determined from the keys.txt file.
                         filename.write(str(new_object['aliases'][0])+'\t'+str(object_check['uuid'])+'\n')
 			posted_objects.append(object_check)
                 elif response['status'] == 'error':
+                        #print response
 			new_object.update({'description':response['description']})
-			new_object.update({'errors':response['errors']})
+			new_object.update({'errors':response['error']})
 			new_object.update({'object_type':object_type})
 			error_objects.append(new_object)
                 else:
-                    sys.exit()    
+                    sys.exit()
         # if object is found, check for differences and patch it if needed/valid.
         elif put_status:
             # clean object of unpatchable or nonexistent properties. SHOULD INFORM USER OF ANYTHING THAT DOESN"T GET PUT.
