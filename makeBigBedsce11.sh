@@ -21,4 +21,5 @@ for filename in $1/*.regionPeak.gz; do
     cat $filename.temp5 | gzip -c > $filename
     rm $filename.temp*
     echo " $filename converted to BigBed"
+    echo "content md5sum:" `zcat $filename | md5sum | cut -f1 -d" "`;
 done

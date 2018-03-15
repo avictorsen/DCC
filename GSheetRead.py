@@ -128,11 +128,9 @@ for row in range(1, work.nrows, 1):
     #break on blank line
     dieif = 0
     for cell in work.row_values(row,0):
-        if cell is "":
-            None
-        else:
+        if cell != '':
             dieif = 1
-    if dieif == 0:
+    if dieif < 1:
         break
     new_object = {u'@type':[workbook,u'item']}
     for colindex,header in enumerate(headers):
@@ -142,10 +140,13 @@ for row in range(1, work.nrows, 1):
             value = work.cell_value(row, colindex)
             print '{}: \"{}\"'.format(*[header,value])
             if value != '':
+                #print  object_schema[u'properties'][header][u'type']
                 # need to fix dates before adding them. Google API does not allow disabling of autoform$
                 # use regexp to check for dates (MM/DD/YYYY)
                 # then format them as we enter them (YYYY-MM-DD)
-                if re.compile("\d{1,2}/\d{1,2}/\d{1,4}").search(str(value)):
+                format=re.compile("^[dD]ate")
+                #if format.match(object_schema[u'properties'][header][u'format']):
+                if re.compile("\d{1,2}\/\d{1,2}\/\d{1,4}").search(str(value)):
                     date = value.split('/')
                     value = date[2] + '-' + date[0] + '-' + date[1]
                 if object_schema[u'properties'][header][u'type'] == 'string':

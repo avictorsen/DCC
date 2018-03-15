@@ -33,11 +33,10 @@ def GetENCODE(object_id,keys):
             response = requests.get(url,auth=(keys['authid'],keys['authpw']), headers=HEADERS)#, verify=False)
             if not response.status_code == 200:
                 None
-                #print >> sys.stderr, response.text
         # no
         except Exception as e:
             print("Get request failed:")
-            #print(e)
+            print(e, response.status_code)
         # yes
         else:
             return response.json()

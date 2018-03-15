@@ -6,7 +6,7 @@ import os
 import image
 from email.MIMEBase import MIMEBase
 from email import Encoders
-
+from PIL import Image
 dim = 0
 width = 0
 height = 0

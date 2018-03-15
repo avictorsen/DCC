@@ -35,15 +35,17 @@ def main():
     os.system("rmdir --ignore-fail-on-non-empty temp")
     os.system("mkdir temp")
     OUTPUT = open('submit_file_output.txt', 'w')
+    FAIL = open('submit_file_fail.txt', 'w')
+    PATCH = open('submit_file_patched.txt', 'w')
     host = 'https://www.encodeproject.org/'
     #host = 'https://test.encodedcc.org/'
     #host = 'https://v33b1.demo.encodedcc.org/'
     #Static variables
     my_lab = 'kevin-white'
     #modERN
-    my_award = 'U41HG007355'
+    #my_award = 'U41HG007355'
     #modENCODE
-    #my_award = 'U01HG004264'
+    my_award = 'U01HG004264'
     request_type = sys.argv[1]
     proggen = sys.argv[2]
     spreadname = sys.argv[3]
@@ -202,13 +204,15 @@ def main():
                             pair = i.split(': ')
                             if pair[0] == 'machine':
                                 if pair[1] == '@HWI-D00422' or pair[1] == '@HWI-ST1083' or pair[1] == '@HWI-70014499L' or pair[1] == '@HWI-700819F' or pair[1] == '@D3NW3HQ1':
-                                    platform = 'HiSeq 2500'
+                                    platform = 'Illumina HiSeq 2500'
                                 elif pair[1] == '@HWI-ST484' or pair[1] == '@HWI-ST673' or pair[1] == '@D13608P1' or pair[1] == '@DC4RYQN1' or pair[1] == '@HWI-7001449L' or pair[1] == '@HISEQ1' or pair[1] == '@LYNLEY' or pair[1] == '@BRISCOE' or pair[1] == '@MONK' or pair[1] == '@TENNISON' or pair[1] == '@HAVERS':
-                                    platform = 'HiSeq 2000'
-                                elif pair[1] == '@MAGNUM' or pair[1] == '@ROCKFORD' or pair[1] == '@KOJAK' or pair[1] == '@COLUMBO' or pair[1] == '@SPADE':
-                                    platform = 'Genome Analyzer IIx'
+                                    platform = 'Illumina HiSeq 2000'
+                                elif pair[1] == '@MAGNUM' or pair[1] == '@ROCKFORD' or pair[1] == '@KOJAK' or pair[1] == '@COLUMBO' or pair[1] == '@SPADE' or pair[1] == '@GENTLY':
+                                    platform = 'Illumina Genome Analyzer IIx'
                                 elif pair[1] == '@K00242':
-                                    platform = 'HiSeq 4000'
+                                    platform = 'Illumina HiSeq 4000'
+                                elif pair[1] == '@HWI-ST665' or pair[1] == '@HWI-EAS276' or pair[1] == '@HWI-EAS146' or pair[1] == '@HWI-EAS137R' or pair[1] == '@HWUSI-EAS552R' or pair[1] == '@USI-EAS28' or pair[1] == '@HWI-EAS279' or pair[1] == '@HWI-EAS146':
+                                    platform = 'Illumina Genome Analyzer'
                                 else:
                                     print "cannot find platform for " + pair[1]
                                     sys.exit()
@@ -233,58 +237,65 @@ def main():
                         if request_type != "patch":
                             if proggen == 'dm3':
                                 #file = [path]
-                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm3/2*/" + path).readlines()
-                                if "1 file to consider\n" in search:
-                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm3/2*/" + path + " ./temp")
-                                else:
-                                    print "wrong number of files found"
-                                    print search
-                                    sys.exit()
-                                file = os.popen("find ./temp/* -name " + path).readlines()
+                                os.system("cp " + path + " ./temp")
+                                #os.system("cp /data/dm/processed/dm3/" + path + " ./temp")
+                                #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm3/2*/" + path).readlines()
+                                #if "1 file to consider\n" in search:
+                                #    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm3/2*/" + path + " ./temp")
+                                #else:
+                                #    print "wrong number of files found"
+                                #    print search
+                                #    sys.exit()
+                                file = os.popen("find ./temp/* -name " + os.path.basename(path)).readlines()
                                 #file = os.popen("find /raid/modencode/dm/processed/dm3/2* -name " + path).readlines()
-                                assembly = 'dm3'
-                                path = file[0].rstrip()
+                                #path = file[0].rstrip()
                                 path = "./temp/" + os.path.basename(path)
+                                assembly = 'dm3'
                                 os.system("sh makeBamsdm3.sh ./temp/")
                             elif proggen == 'dm6':
-                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm6/2*/" + path).readlines()
-                                if "1 file to consider\n" in search:
-                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm6/2*/" + path + " ./temp")
-                                else:
-                                    print "wrong number of files found"
-                                    print search
-                                    sys.exit()
-                                file = os.popen("find ./temp/* -name " + path).readlines()
+                                os.system("cp " + path + " ./temp")
+                                #os.system("cp /data/dm/processed/dm6/" + path + " ./temp")
+                                #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm6/2*/" + path).readlines()
+                                #if "1 file to consider\n" in search:
+                                #    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm6/2*/" + path + " ./temp")
+                                #else:
+                                #    print "wrong number of files found"
+                                #    print search
+                                #    sys.exit()
+                                #file = os.popen("find ./temp/* -name " + path).readlines()
                                 #os.system("sshpass -f '../mycloud.password' rsync -v --progress sshd@128.135.219.201:/nfs/modern/modencode/dmel/processed/dm6/2*/" + path + " ./temp/")
+                                file = os.popen("find ./temp/* -name " + os.path.basename(path)).readlines()
                                 #file = os.popen("find /media/mybooklive/modencode/dmel/processed/dm6/2* -name " + path).readlines()
-                                path = "./temp/" + path
-                                assembly = 'dm6'
-                                path = file[0].rstrip()
+                                #path = "./temp/" + path
+                                #path = file[0].rstrip()
                                 path = "./temp/" + os.path.basename(path)
+                                assembly = 'dm6'
                                 #os.system("sh makeBamsdm6.sh ./temp/")
                             elif proggen == 'WS220':
-                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/2*/" + path).readlines()
-                                if "1 file to consider\n" in search:
-                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/2*/" + path + " ./temp")
-                                else:
-                                    print "wrong number of files found"
-                                    print search
-                                    sys.exit()
+                                os.system("cp " + path + " ./temp")
+                                #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/old_data/" + path).readlines()
+                                #if "1 file to consider\n" in search:
+                                #    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/old_data/" + path + " ./temp")
+                                #else:
+                                #    print "wrong number of files found"
+                                #    print search
+                                #    sys.exit()
                                 file = os.popen("find ./temp/* -name " + os.path.basename(path)).readlines()
-                                path = "./temp/" + path
-                                #file = os.popen("find /data/ce/processed/WS220/2*/ -name " + path).readlines()
+                                #path = "./temp/" + path
+                                path = "./temp/" + os.path.basename(path)
                                 assembly = 'ce10'
                             elif proggen == 'WS245':
-                                search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/2*/" + path).readlines()
-                                if "1 file to consider\n" in search:
-                                    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/2*/" + path + " ./temp")
-                                else:
-                                    print "wrong number of files found"
-                                    print search
-                                    sys.exit()
+                                os.popen("cp " + path + " ./temp")
+                                #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/old_data/" + path).readlines()
+                                #if "1 file to consider\n" in search:
+                                #    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/old_data/" + path + " ./temp")
+                                #else:
+                                #    print "wrong number of files found"
+                                #    print search
+                                #    sys.exit()
                                 file = os.popen("find ./temp/* -name " + os.path.basename(path)).readlines()
-                                path = "./temp/" + path
-                                #file = os.popen("find /data/ce/processed/WS235/2*/ -name " + path).readlines()
+                                #path = "./temp/" + path
+                                path = "./temp/" + os.path.basename(path)
                                 assembly = 'ce11'
                             else:
                                 print 'Genome not recognized'
@@ -310,28 +321,28 @@ def main():
                     elif (temp[1] == ".txt" or temp[1] == '.fastq'):
                         format = 'fastq'
                         if request_type != "patch":
-                            os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
-                            #os.system("cp " + path + " ./temp/")
+                            #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                            os.system("cp " + path + " ./temp/")
                             path = "./temp/" + os.path.basename(path)
                             os.system("perl Phred64_to_Phred33.pl " + path)
                     elif (temp[1] == '.wig'):
                        format = 'bigWig'
                        if request_type != "patch":
-                           #os.system("cp " + path + " ./temp/")
+                           os.system("cp " + path + " ./temp/")
                            if (proggen == 'dm3'):
-                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                                os.system("sh makeBigWigsdm3.sh ./temp/")
                                assembly = 'dm3'
                            elif (proggen == 'dm6'):
-                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                                os.system("sh makeBigWigsdm6.sh ./temp/")
                                assembly = 'dm6'
                            elif (proggen == 'WS220'):
-                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                                os.system("sh makeBigWigsce10.sh ./temp/")
                                assembly = 'ce10'
                            elif (proggen == 'WS245'):
-                               os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                               #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                                os.system("sh makeBigWigsce11.sh ./temp/")
                                assembly = 'ce11'
                            else:
@@ -343,8 +354,8 @@ def main():
                     elif (temp[1] == '.regionPeak'):
                        format = 'bed'
                        if request_type != "patch":
-                           os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
-                           #os.system("cp  --no-preserve='all' " + path + " ./temp/")
+                           #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
+                           os.system("cp  --no-preserve='all' " + path + " ./temp/")
                            if (proggen == 'dm3'):
                                os.system("sh makeBigBedsdm3.sh ./temp/")
                                assembly = 'dm3'
@@ -375,8 +386,9 @@ def main():
             step = DCC_rep_pipeline[output_type]
 
         #compile and send to DCC
-        DCC(locals(),OUTPUT)
+        DCC(locals(),OUTPUT,FAIL,PATCH)
         #if file format is bed, rerun with original bed file
+        #sys.exit()
         if (format == 'bed'):
             print "\n\nRepeating submission with bigBed file\n"
             derived_from = [aliases]
@@ -397,14 +409,14 @@ def main():
                     replaces[i] = new
             format = 'bigBed'
             path = path.replace('.gz','.bb')
-            DCC(locals(),OUTPUT)
+            DCC(locals(),OUTPUT,FAIL,PATCH)
 
 
         ####Clean up
         os.system("rm -f ./temp/*")
     os.system("rmdir --ignore-fail-on-non-empty temp")
 
-def DCC(d, OUTPUT):
+def DCC(d, OUTPUT, FAIL, PATCH):
     encValData = 'encValData'
     #compile data
     data = {
@@ -418,6 +430,15 @@ def DCC(d, OUTPUT):
     if ('derived_from' in d['headers']):
         if d['derived_from'] != None:
             data['derived_from'] = d['derived_from']
+        if 'assembly' in d and data['file_format'] == 'bam':
+            if d['assembly'] is 'dm3':
+                data['derived_from'].append('ENCFF059UHX')
+            if d['assembly'] is 'dm6':
+                data['derived_from'].append('ENCFF479RCH')
+            if d['assembly'] is 'ce10':
+                data['derived_from'].append('ENCFF987UMF')
+            if d['assembly'] is 'ce11':
+                data['derived_from'].append('ENCFF586MOL')
     if 'replaces' in d:
         data['supersedes'] = d['replaces']
     if 'type' in d:
@@ -559,6 +580,9 @@ def DCC(d, OUTPUT):
         'Content-type': 'application/json',
         'Accept': 'application/json',
     }
+#    if 'check' in sys.argv[5]:
+#        return
+#    sys.exit()
     r = requests.post(
         d['host'] + '/files',
         auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
@@ -597,7 +621,6 @@ def DCC(d, OUTPUT):
                 print
             print('Patch attempt: %s %s' % (s.status_code, s.reason))
             print s.json()
-            sys.exit()
     print " Success!"
     if r.json()[u'status'] == 'success':
         print '  uuid: ',r.json()['@graph'][0]['uuid']
@@ -605,7 +628,16 @@ def DCC(d, OUTPUT):
     elif s.json()[u'status'] == 'success':
         print '  uuid: ',s.json()['@graph'][0]['uuid']
         temp = s.json()['@graph'][0]['uuid']
-
+        PATCH.write(d['aliases'])
+        PATCH.write('\t')
+        PATCH.write(temp)
+        PATCH.write('\n')
+    elif s.json()[u'status'] != 'success':
+        FAIL.write(d['aliases'])
+        FAIL.write('\t%s\t%s\n' % (s.status_code, s.reason))
+    else:
+        print "something went really wrong"
+        sys.exit()
     ##### upload files
     ############### post ###############
     if temp != "" and d['request_type'] == 'post':

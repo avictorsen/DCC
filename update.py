@@ -14,6 +14,7 @@ from ENCODETools import FlatJSON
 #from ENCODETools import EmbedJSON
 from ENCODETools import WriteJSON
 import sys
+import json
 import csv
 import pickle
 import collections
@@ -35,6 +36,7 @@ Authentication is determined from the keys.txt file.
            PW_file = key.get('password')
         else:
            print
+    #keys = {'server':'https://test.encodeDCC.org/', 'authid':encoded_access_key, 'authpw':encoded_secret_access_key}
     keys = {'server':'https://www.encodeproject.org/', 'authid':encoded_access_key, 'authpw':encoded_secret_access_key}
 
     # load object SHOULD HANDLE ERRORS GRACEFULLY
@@ -77,6 +79,7 @@ Authentication is determined from the keys.txt file.
             object_id = str(object_uuid)
         else:
             object_uuid = ''
+        print "ID: " + object_id
 #        if new_object.has_key(u'organism'):
 #            ordered_object = collections.OrderedDict({'organism': new_object[u'organism']})
 #            ordered_object.update(new_object)
@@ -84,30 +87,31 @@ Authentication is determined from the keys.txt file.
 #            print new_object
             #sys.exit()
 
-        #print('Getting Schema.')
+        print('\n\nGetting Schema.')
         object_schema = GetENCODE(('/profiles/' + object_type + '.json'),keys)
+        #print json.dumps(object_schema, sort_keys=True, indent=4, separators=(',', ': '))
         # check to see if object already exists
-        #print('Checking Object.')
+        print 'Searching for object on server.'
         if object_id != '':
             old_object = GetENCODE(object_id,keys)
         # if object is not found, verify and post it
         if (old_object.get(u'title') == u'Not Found') | (old_object.get(u'title') == u'Home'):
             #new_object = FlatJSON(new_object,keys)
-            print '\n\nalias:',new_object[u'aliases'][0],'is new.'
+            print 'alias:',new_object[u'aliases'][0],'is new.'
             # test the new object
             if ValidJSON(object_schema,object_type,object_id,new_object,keys):
             	# post the new object(s). SHOULD HANDLE ERRORS GRACEFULLY
                 new_object = CleanJSON(new_object,object_schema,'POST')
                 response = new_ENCODE(object_type,new_object,keys)
-		#print response['status']
+		print response['status']
 		if response['status'] == 'success':
 			object_check = GetENCODE(str(response[u'@graph'][0][u'@id']),keys)
 	         #	print object_check
 			print 'uuid:', object_check[u'uuid']
                         filename.write(str(new_object['aliases'][0])+'\t'+str(object_check['uuid'])+'\n')
+#                        filename.write(str(new_object['aliases'][0])+'\t'+str(object_check['uuid'])+'\t'+str(object_check['accession'])+'\n')
 			posted_objects.append(object_check)
                 elif response['status'] == 'error':
-                        #print response
 			new_object.update({'description':response['description']})
 			new_object.update({'errors':response['error']})
 			new_object.update({'object_type':object_type})
