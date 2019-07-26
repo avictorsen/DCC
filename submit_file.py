@@ -43,9 +43,9 @@ def main():
     #Static variables
     my_lab = 'kevin-white'
     #modERN
-    #my_award = 'U41HG007355'
+    my_award = 'U41HG007355'
     #modENCODE
-    my_award = 'U01HG004264'
+    #my_award = 'U01HG004264'
     request_type = sys.argv[1]
     proggen = sys.argv[2]
     spreadname = sys.argv[3]
@@ -58,6 +58,7 @@ def main():
         'read-depth normalized signal': 'modern:chip-seq-read-depth-normalized-signal-generation-step-run-v-1-virtual',
         'control normalized signal': 'modern:chip-seq-control-normalized-signal-generation-step-run-v-1-virtual',
         'peaks': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
+        'peaks and background as input for IDR': 'modern:chip-seq-spp-peak-calling-step-run-v-1-virtual',
         'bigBed': 'modern:chip-seq-peaks-to-bigbed-step-run-v-1-virtual'
         }
 
@@ -237,7 +238,7 @@ def main():
                         if request_type != "patch":
                             if proggen == 'dm3':
                                 #file = [path]
-                                os.system("cp " + path + " ./temp")
+                                os.system("cp -v " + path + " ./temp")
                                 #os.system("cp /data/dm/processed/dm3/" + path + " ./temp")
                                 #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm3/2*/" + path).readlines()
                                 #if "1 file to consider\n" in search:
@@ -253,7 +254,7 @@ def main():
                                 assembly = 'dm3'
                                 os.system("sh makeBamsdm3.sh ./temp/")
                             elif proggen == 'dm6':
-                                os.system("cp " + path + " ./temp")
+                                os.system("cp -v " + path + " ./temp")
                                 #os.system("cp /data/dm/processed/dm6/" + path + " ./temp")
                                 #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/dm/processed/dm6/2*/" + path).readlines()
                                 #if "1 file to consider\n" in search:
@@ -272,7 +273,7 @@ def main():
                                 assembly = 'dm6'
                                 #os.system("sh makeBamsdm6.sh ./temp/")
                             elif proggen == 'WS220':
-                                os.system("cp " + path + " ./temp")
+                                os.system("cp -v " + path + " ./temp")
                                 #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/old_data/" + path).readlines()
                                 #if "1 file to consider\n" in search:
                                 #    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS220/old_data/" + path + " ./temp")
@@ -285,7 +286,7 @@ def main():
                                 path = "./temp/" + os.path.basename(path)
                                 assembly = 'ce10'
                             elif proggen == 'WS245':
-                                os.popen("cp " + path + " ./temp")
+                                os.popen("cp -v " + path + " ./temp")
                                 #search = os.popen("rsync -cP --list-only avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/old_data/" + path).readlines()
                                 #if "1 file to consider\n" in search:
                                 #    os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:/glusterfs/data/modencode/WhiteLab_UniformProcessing/ce/processed/WS245/old_data/" + path + " ./temp")
@@ -322,13 +323,13 @@ def main():
                         format = 'fastq'
                         if request_type != "patch":
                             #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
-                            os.system("cp " + path + " ./temp/")
+                            os.system("cp -v " + path + " ./temp/")
                             path = "./temp/" + os.path.basename(path)
                             os.system("perl Phred64_to_Phred33.pl " + path)
                     elif (temp[1] == '.wig'):
                        format = 'bigWig'
                        if request_type != "patch":
-                           os.system("cp " + path + " ./temp/")
+                           os.system("cp -v " + path + " ./temp/")
                            if (proggen == 'dm3'):
                                #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
                                os.system("sh makeBigWigsdm3.sh ./temp/")
@@ -355,7 +356,7 @@ def main():
                        format = 'bed'
                        if request_type != "patch":
                            #os.system("rsync -cP avictorsen@sullivan.opensciencedatacloud.org:" + path + " ./temp/")
-                           os.system("cp  --no-preserve='all' " + path + " ./temp/")
+                           os.system("cp -v --no-preserve='all' " + path + " ./temp/")
                            if (proggen == 'dm3'):
                                os.system("sh makeBigBedsdm3.sh ./temp/")
                                assembly = 'dm3'
@@ -580,9 +581,47 @@ def DCC(d, OUTPUT, FAIL, PATCH):
         'Content-type': 'application/json',
         'Accept': 'application/json',
     }
-#    if 'check' in sys.argv[5]:
-#        return
-#    sys.exit()
+    if 'check' in sys.argv:
+        u = requests.get(
+            d['host'] + d['aliases'],
+            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
+        )
+        print '\ncomparing ' + d['aliases']
+        if 'content_md5sum' in u.json():
+            print "content_md5sum: ",
+            beep = subprocess.Popen(['zcat ',d['path'],' | md5sum | cut -f1'],)
+            print beep,
+            print " vs uploaded md5sum: ",
+            print u.json()['content_md5sum'],
+        for item in data:
+            print '    ' + item +':',
+            if item in u.json():
+                if type(u.json()[item]) is dict:
+                    if 'aliases' in u.json()[item]:
+                        if data[item] != u.json()[item]['aliases']:
+                           print data[item],
+                           print ' is not the same as ',
+                           print u.json()[item]['aliases']
+                        else:
+                           print 'SAME'
+                    elif 'name' in u.json()[item]:
+                        if data[item] != u.json()[item]['name']:
+                           print data[item],
+                           print ' is not the same as ',
+                           print u.json()[item]['name']
+                        else:
+                           print 'SAME'
+                else:
+                    if data[item] != u.json()[item]:
+                       print data[item],
+                       print ' is not the same as ',
+                       print u.json()[item]
+                    else:
+                       print 'SAME'
+            else:
+                print 'No match for ',
+                print item
+        return
     r = requests.post(
         d['host'] + '/files',
         auth=(d['encoded_access_key'], d['encoded_secret_access_key']),
@@ -596,11 +635,6 @@ def DCC(d, OUTPUT, FAIL, PATCH):
         except requests.exceptions.HTTPError:
             #print "r:",r.json()
             print " Failed! Trying patch"
-#    if d['request_type'] == 'patch':
-#        print "removing md5sum, file_size, and submitted_file_name for update"
-#        del data['md5sum']
-#        del data['file_size']
-#        del data['submitted_file_name']
     if d['request_type'] == 'patch' or 'status' in r.json():
         print "patching metadata:",
         s = requests.patch(#change to put to overwrite,patch to ammend
@@ -703,7 +737,8 @@ def DCC(d, OUTPUT, FAIL, PATCH):
         temp = s.json()['@graph'][0]['uuid']
         OUTPUT.write(temp)
         OUTPUT.write('\n')
-        renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
+        renew_upload_credentials = "curl --http1.1 -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
+#        renew_upload_credentials = "curl -X POST -H 'Accept:application/json' -H 'Content-Type:application/json' https://" + d['encoded_access_key'] + ":" + d['encoded_secret_access_key'] + "@www.encodeproject.org/files/" + ID + "/upload -d '{}'"
 #        t = requests.patch(
 #            d['host'] + d['aliases'],
 #            auth=(d['encoded_access_key'], d['encoded_secret_access_key']),

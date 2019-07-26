@@ -19,7 +19,7 @@ for filename in $1/*.wig; do
 
     # -clip option to issue warning messages rather than dying if wig file contains items off end of chromosome.
     # some wig files had chr3RHet extending more than listed in chrom.sizes
-    ./wigToBigWig -clip $filename /data/avictorsen/DCC/encValData/WS245/chrom.sizes "${filename%%.wig}.bw"
+    ./wigToBigWig -clip $filename /data/users/avictorsen/DCC/encValData/WS245/chrom.sizes "${filename%%.wig}.bw"
     #echo " $filename converted to BigWig"
 done
 
